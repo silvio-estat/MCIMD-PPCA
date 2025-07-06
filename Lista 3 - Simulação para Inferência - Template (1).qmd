@@ -341,12 +341,32 @@ No caso exemplificado, quando a distância é pequena, podemos ver que, como o c
 ### Parte B: Análise de Sensibilidade em um Contexto de Machine Learning
 
 ```{r prob3b_setup}
-# 1. Carregue e divida os dados
+
 set.seed(2024)
-# ... seu código para dividir o dataset Default em treino (70%) e validação (30%) ...
-# ... seu código para treinar o modelo de regressão logística ...
-# Treinar o modelo
-# modelo_logistico <- glm(default ~ student + balance + income, data = treino, family = "binomial")
+
+treino_indices <- createDataPartition(Default$default, p = 0.7, list = FALSE)
+
+
+treino<- as.data.frame(Default[treino_indices, ])
+
+#modelo_logistico <- glm(default ~ student + balance + income, data = treino, family = "binomial")
+
+# Modelo nulo (apenas intercepto)
+modelo_nulo <- glm(default ~ 1, data = treino, family = "binomial")
+
+# Fórmula do modelo completo
+formula_completa <- default ~ student + balance + income
+
+# 3. Executar a seleção de variáveis forward
+# O argumento 'trace = 1' mostra cada passo do processo
+selecao_forward <- step(
+  modelo_nulo,
+  scope = list(lower = formula(modelo_nulo), upper = formula_completa),
+  direction = "forward",
+  trace = 1
+)
+summary(selecao_forward)
+
 ```
 
 ```{r prob3b_analysis}
