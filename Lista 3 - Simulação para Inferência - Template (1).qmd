@@ -1,0 +1,389 @@
+---
+title: "PPCA0026 - Tarefa de Casa: Simulação, Poder e Decisão"
+subtitle: "Aplicando os Conceitos da Semana 4"
+author: "Sílvio Ferreira Gomes Júnior"
+date: "2025-07-04"
+format:
+  html:
+    embed-resources: true
+    toc: true
+    toc-depth: 3
+    theme: cosmo
+    code-fold: show
+    code-tools: true
+---
+
+## Introdução
+
+Nesta tarefa, você aplicará os conceitos de simulação para entender as propriedades de testes estatísticos, implementará um teste não-paramétrico do zero, e aplicará um framework de teoria da decisão para analisar um problema de classificação.
+
+**Instruções Gerais:**
+
+* Este arquivo serve como seu template de resposta. Preencha as seções marcadas com seu código R, as saídas geradas, e suas análises textuais.
+* **Entrega:** Envie dois arquivos: este `.qmd` completo e o arquivo `.html` auto-contido resultante.
+
+---
+
+## Problema 1: O Poder de um Teste - Um Estudo de Simulação
+
+### Parte A: Poder vs. Tamanho do Efeito
+
+```{r prob1a_power_function}
+# Carregar pacotes necessários para a tarefa
+library(tidyverse)
+library(caret) # Para createDataPartition, se necessário
+library(ISLR2) # Para o dataset Default
+
+# 1. Crie sua função `calcular_poder` aqui.
+calcular_poder <- function(n, d, sigma, num_sim = 1000, alpha = 0.05) {
+
+  rejeicoes <- 0
+  
+  valor_critico <- qnorm(1 - alpha / 2)
+  
+  erro_padrao <- sigma / sqrt(n)
+
+  
+  for (i in 1:num_sim) {
+    
+    dados_simulados <- rnorm(n, mean = d, sd = sigma)
+    
+    media_amostral <- mean(dados_simulados)
+    
+    z_stat <- media_amostral / erro_padrao
+    
+    # Verificar se a estatística de teste cai na área de rejeição
+    if (abs(z_stat) > valor_critico) {
+      rejeicoes <- rejeicoes + 1
+    }
+  }
+  
+  # Calcular o poder: a proporção de vezes que a hipótese nula foi rejeitada
+  poder <- rejeicoes / num_sim
+  
+  return(poder)
+}
+```
+
+```{r prob1a_run_and_plot}
+# 2. Defina os parâmetros e calcule o poder para cada tamanho de efeito
+n_fixo <- 30
+sigma_fixo <- 1
+efeitos_d <- seq(0, 2, by = 0.1)
+
+poderes_calculados <- sapply(efeitos_d, function(d) {
+  calcular_poder(n = n_fixo, d = d, sigma = sigma_fixo)
+})
+
+# 3. Crie o gráfico de Poder vs. Tamanho do Efeito
+# Criar um dataframe para o ggplot
+dados_plotagem <- data.frame(
+  tamanho_efeito = efeitos_d,
+  poder = poderes_calculados
+)
+
+# Gerar o gráfico
+ggplot(dados_plotagem, aes(x = tamanho_efeito, y = poder)) +
+  geom_line(color = "red") + # Mudei para vermelho para diferenciar
+  geom_point(color = "red") +
+  labs(
+    title = "Poder do Teste vs. Tamanho do Efeito",
+    x = "Tamanho do Efeito (d)",
+    y = "Poder Estatístico"
+  ) +
+  theme_minimal() +
+  scale_y_continuous(labels = scales::percent)
+```
+
+**Análise da Parte A:**
+
+Podemos perceber quanto maior a distâncias entre as médias das distribuições causada pelo aumento do efeito, maior o poder do teste. Isso é esperado, pois um efeito maior torna mais fácil detectar uma diferença significativa entre as médias.
+
+### Parte B: Poder vs. Tamanho da Amostra
+
+```{r prob1b_run_and_plot}
+# 1. Defina os parâmetros
+d_fixo <- 0.5
+sigma_fixo <- 1
+amostras_n <- seq(10, 200, by = 10)
+
+poderes_calculados <- sapply(amostras_n, function(n) {
+  calcular_poder(n = n, d = d_fixo, sigma = sigma_fixo)
+})
+
+# 3. Crie o gráfico de Poder vs. Tamanho do Efeito
+# Criar um dataframe para o ggplot
+dados_plotagem <- data.frame(
+  tamanho_n = amostras_n,
+  poder = poderes_calculados
+)
+
+# Gerar o gráfico
+ggplot(dados_plotagem, aes(x = tamanho_n, y = poder)) +
+  geom_line(color = "red") + # Mudei para vermelho para diferenciar
+  geom_point(color = "red") +
+  labs(
+    title = "Poder do Teste vs. Tamanho da amostra",
+    x = "Tamanho da amostra (n)",
+    y = "Poder Estatístico"
+  ) +
+  theme_minimal() +
+  scale_y_continuous(labels = scales::percent)
+```
+
+**Análise da Parte B:**
+
+Da mesma forma, quando aumentamos o "n" (tamanho da amostra) o erro padrão diminui, deixando o teste mais sensível a detectar diferenças entre as médias. Assim, o poder do teste aumenta com o tamanho da amostra.
+
+---
+
+## Problema 2: Teste de Permutação para Correlação
+
+### Parte A: Teste Clássico
+
+```{r prob2a_classical_test}
+
+teste_cor <- cor.test(mtcars$wt, mtcars$mpg)
+
+print(teste_cor)
+
+```
+
+**Análise da Parte A:**
+
+Pelos resultados, podemos observar uma correlação negativa entre o peso do carro e a eficiência de combustível, com um p-valor muito baixo indicando que essa correlação é estatisticamente significativa.
+
+### Parte B e C: Teste de Permutação e Análise
+
+```{r prob2c_solution}
+
+obs_cor <- cor(mtcars$mpg, mtcars$wt)
+
+paste("Correlação Observada (mpg vs wt):", obs_cor)
+
+# ...
+
+# 2. Implemente o loop de permutação
+
+num_sim <- 5000
+
+null_dist_cor <- numeric(num_sim)
+
+for (i in 1:num_sim) {
+ 
+  wt_emb <- sample(mtcars$wt)
+  
+  null_dist_cor[i] <- cor(mtcars$mpg, wt_emb)
+}
+
+# ...
+
+# 3. Visualize a distribuição nula e calcule o p-valor
+
+ggplot(data.frame(correlacoes = null_dist_cor), aes(x = correlacoes)) +
+  geom_histogram(bins = 30, fill = "lightblue", color = "black") +
+  geom_vline(xintercept = obs_cor, color = "red", linetype = "dashed") +
+  labs(title = "Distribuição nula empírica de correlações",
+       x = "Correlação (sob H0)",
+       y = "Frequência") +
+  theme_minimal()
+
+
+# 4. Calule o p-valor bilateral
+p_valor <- mean(abs(null_dist_cor) >= abs(obs_cor))
+paste("P-valor bilateral:", p_valor*2)
+
+# ...
+```
+
+**Análise da Parte C:**
+
+Podemos observar que, sob a hipótese nula, a distribuição das correlações é simétrica e centrada em zero. O p-valor bilateral indica que a correlação observada é estatisticamente significativa, reforçando os resultados do teste clássico. Da forma calculada, nenhuma das correlações calculadas foram tao maiores (ou menores) que a observada, o que reforça a ideia de que a correlação é significativa. Tal valor reforça o p-valor do teste calulado anteiormente que é aproximadamente igual a zero.
+
+---
+
+## Problema 3: Análise de Sensibilidade e Decisões Ótimas
+
+### Parte A: Análise de Sensibilidade Teórica
+
+```{r prob3a_sensitivity_analysis}
+# Cenário: C_I = 1,000,000; C_II = 5,000,000
+# Você precisará da sua função `calcular_poder` do Problema 1.
+library(scales)
+
+# 1. Defina os tamanhos de efeito e outros parâmetros
+efeitos <- c(pequeno = 0.2, medio = 0.5, grande = 1.0)
+n_fixo_prob3 <- 60 # Tamanho de amostra especificado
+sigma_fixo_prob3 <- 1
+
+erro_padrao <- sigma_fixo_prob3 / sqrt(n_fixo_prob3)
+
+
+
+custo_erro1 <- 1000000 
+custo_erro2 <- 5000000
+
+# calulo do risco
+
+efeito= efeitos[[1]]
+z=(efeitos[[1]] / erro_padrao)
+
+calcular_risco <- function(alpha, z, custo1, custo2) {
+  
+
+  valor_critico <- qnorm(1 - alpha, mean = 0, sd = 1)
+  
+  
+  beta <- pnorm(valor_critico, mean = z, sd = 1)
+  
+  risco_total <- (alpha * custo1) + (beta * custo2)
+  
+  return(risco_total)
+}
+
+
+# 2. Simule para encontrar o alpha ótimo para cada tamanho de efeito
+
+alphas_para_testar <- seq(0.001, 0.50, by = 0.001)
+
+efeito1= efeitos[[1]]
+z1=(efeito1 / erro_padrao)
+
+efeito2= efeitos[[2]]
+z2=(efeito2 / erro_padrao)
+
+efeito3= efeitos[[3]]
+z3=(efeito3 / erro_padrao)
+
+
+riscos_totais1 <- sapply(alphas_para_testar, calcular_risco,
+                        z = z1,
+                        custo1 = custo_erro1,
+                        custo2 = custo_erro2)
+
+riscos_totais2 <- sapply(alphas_para_testar, calcular_risco,
+                        z = z2,
+                        custo1 = custo_erro1,
+                        custo2 = custo_erro2)
+
+riscos_totais3 <- sapply(alphas_para_testar, calcular_risco,
+                        z = z3,
+                        custo1 = custo_erro1,
+                        custo2 = custo_erro2)
+
+
+
+tabela_riscos <- tibble(
+  alpha = alphas_para_testar,
+  risco1 = riscos_totais1,
+  risco2 = riscos_totais2,
+  risco3 = riscos_totais3
+)
+
+ponto_otimo1 <- tabela_riscos %>% filter(risco1 == min(risco1))
+ponto_otimo2 <- tabela_riscos %>% filter(risco2 == min(risco2))
+ponto_otimo3 <- tabela_riscos %>% filter(risco3 == min(risco3))
+
+print(paste("Ponto ótimo para efeito pequeno: α =", round(ponto_otimo1$alpha, 3), "com risco mínimo =", dollar(ponto_otimo1$risco1)))
+print(paste("Ponto ótimo para efeito médio: α =", round(ponto_otimo2$alpha, 3), "com risco mínimo =", dollar(ponto_otimo2$risco2)))
+print(paste("Ponto ótimo para efeito grande: α =", round(ponto_otimo3$alpha, 3), "com risco mínimo =", dollar(ponto_otimo3$risco3)))
+
+tabela_riscos_long <- data.frame(
+  alpha = rep(tabela_riscos$alpha, 3),
+  risco = c(tabela_riscos$risco1, tabela_riscos$risco2, tabela_riscos$risco3),
+  tipo = factor(rep(c("Efeito = 0.2", "Efeito = 0.5", "Efeito = 1"), each = nrow(tabela_riscos)))
+)
+
+ponto_otimo1_corrigido <- data.frame(alpha = ponto_otimo1$alpha, risco = ponto_otimo1$risco1, tipo = "Efeito = 0.2")
+ponto_otimo2_corrigido <- data.frame(alpha = ponto_otimo2$alpha, risco = ponto_otimo2$risco2, tipo = "Efeito = 0.5")
+ponto_otimo3_corrigido <- data.frame(alpha = ponto_otimo3$alpha, risco = ponto_otimo3$risco3, tipo = "Efeito = 1")
+pontos_otimos <- rbind(ponto_otimo1_corrigido, ponto_otimo2_corrigido, ponto_otimo3_corrigido)
+
+grafico_risco <- ggplot(tabela_riscos_long, aes(x = alpha, y = risco, color = tipo)) +
+  geom_line(size = 1) +
+  geom_point(data = pontos_otimos, aes(x = alpha, y = risco, color = tipo), size = 4) +
+  labs(
+    title = "Análise de Risco por tipo de Efeito",
+    subtitle = expression(paste("Risco(", alpha, ") = ", alpha, "C"["I"], " + ", beta, "(", alpha, ")C"["II"])),
+    x = "Nível de Significância (α)",
+    y = "Risco Total Esperado",
+    color = "Tipo de Risco"
+  ) +
+  scale_y_continuous(labels = dollar) +
+  scale_color_manual(values = c("Efeito = 0.2" = "blue", "Efeito = 0.5" = "green", "Efeito = 1" = "orange")) +
+  theme_bw()
+
+grafico_risco
+
+#grafico_risco <- ggplot(tabela_riscos, aes(x = alpha)) +
+#  geom_line(aes(y = risco1), color = "blue", size = 1) +
+#  geom_line(aes(y = risco2), color = "green", size = 1) +
+#  geom_line(aes(y = risco3), color = "orange", size = 1) +
+#  geom_point(data = ponto_otimo1, aes(x = alpha, y = risco1), color = "blue", size = 4) +
+#  geom_point(data = ponto_otimo2, aes(x = alpha, y = risco2), color = "green", size = 4) +
+#  geom_point(data = ponto_otimo3, aes(x = alpha, y = risco3), color = "orange", size = 4) +
+#  labs(title = "Análise de Risco por tipo de Efeito",
+#       subtitle = expression(paste("Risco(", alpha, ") = ", alpha, "C"["I"], " + ", beta, "(", alpha, ")C"["II"])),
+#       x = "Nível de Significância (α)",
+#       y = "Risco Total Esperado") +
+#  scale_y_continuous(labels = dollar) + 
+#  theme_bw()
+
+#print(grafico_risco)
+
+
+```
+
+**Análise da Parte A:**
+
+No caso exemplificado, quando a distância é pequena, podemos ver que, como o custo do erro tipo 2 é 5 vezes o do tipo 1, quanto maior o alfa, maior o poder do teste, ou seja, menor o beta que está intimamente ligado ao custo do erro tipo 2. Assim, o ponto ótimo de alfa (0.5) é aquele que minimiza o risco total esperado, levando em consideração os custos associados a cada tipo de erro. Com o aumento do tamanho do efeito, o ponto ótimo de alfa diminui, pois o poder do teste aumenta, tornando mais fácil detectar diferenças significativas. Isso é esperado, pois com um efeito maior, a probabilidade de cometer um erro tipo 2 diminui.
+
+### Parte B: Análise de Sensibilidade em um Contexto de Machine Learning
+
+```{r prob3b_setup}
+# 1. Carregue e divida os dados
+set.seed(2024)
+# ... seu código para dividir o dataset Default em treino (70%) e validação (30%) ...
+# ... seu código para treinar o modelo de regressão logística ...
+# Treinar o modelo
+# modelo_logistico <- glm(default ~ student + balance + income, data = treino, family = "binomial")
+```
+
+```{r prob3b_analysis}
+# 2. Identifique os subgrupos no conjunto de validação
+# ...
+
+# 3. Avaliar desempenho geral
+# prob_geral <- predict(modelo_logistico, newdata = validacao, type = "response")
+# Classificar os dados usando um ponto de corte igual a 0.5 (para simplificar)
+# pred_geral <- ifelse(prob_geral > 0.5, "Yes", "No")
+# Gerar a matriz de confusão geral (Confusion Matrix, cm)
+# cm_geral <- table(Observado = validacao$default, Previsto = pred_geral)
+
+# 4. Realize a Análise de Sensibilidade
+# Criar a matriz de Confusão dos Estudantes
+# ...
+# Criar a matriz de Confusão dos Não-Estudantes
+# ...
+
+# 4.5
+# Função para calcular o custo a partir da matriz de confusão
+# ...
+
+# Custo Geral
+# ...
+
+# Custo Estudantes
+# ...
+
+# Custo Não-Estudantes
+# ...
+
+# 5. ATUALIZAÇÃO: Calcule o custo médio por pessoa para cada grupo
+# custo_medio_estudantes <- custo_total_estudantes / n_estudantes
+# ...
+```
+
+**Análise e Recomendação da Parte B:**
+
+*SUA ANÁLISE E RECOMENDAÇÃO AQUI:* Compare os custos médios por pessoa. Com base nesta análise normalizada, qual é a sua recomendação final?
