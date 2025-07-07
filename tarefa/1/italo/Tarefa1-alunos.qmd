@@ -1,0 +1,433 @@
+---
+title: "PPCA0026 - Tarefa de Casa 1: Introdução ao Quarto com R"
+author: "Ítalo Vinícius Pereira Guimarães - 241130529"
+date: "today"
+format:
+  html:
+    embed-resources: true # Para criar um arquivo HTML auto-contido
+    toc: true # Adiciona um sumário
+    toc-depth: 2
+    theme: cosmo # Você pode experimentar outros temas: https://quarto.org/docs/output-formats/html-themes.html
+    code-fold: true # Permite que os leitores expandam/recolham blocos de código
+    code-tools: true # Adiciona ferramentas para copiar código, etc.
+editor: source
+---
+
+## Introdução
+
+Bem-vindo(a) à primeira tarefa de casa da disciplina PPCA0026!
+
+**Objetivos desta tarefa:**
+
+1.  Familiarizar-se com a criação de documentos `.qmd` (Quarto Markdown).
+2.  Aprender a integrar texto narrativo, blocos de código R e a saída desses blocos (incluindo gráficos e tabelas) em um único arquivo HTML auto-contido.
+3.  Praticar a criação de visualizações de dados básicas com `ggplot2` e manipulação de dados elementar com `dplyr`, baseando-se nos exemplos da Semana 1, Parte 2 e no Capítulo 1 do livro "R para Ciência de Dados" (R4DS).
+
+**Referência Principal para Quarto:**
+
+* Capítulo 28 do R4DS (tradução para o português): [Quarto - R para Ciência de Dados](https://pt.r4ds.hadley.nz/quarto.html)
+
+**Instruções Gerais:**
+
+* Substitua `"Seu Nome Aqui"` no cabeçalho YAML pelo seu nome completo.
+* Complete as seções de código R onde indicado.
+* Escreva suas interpretações e respostas textuais onde solicitado.
+* Após completar o arquivo `.qmd`, renderize-o para HTML. Certifique-se de que a opção `embed-resources: true` está no cabeçalho YAML para que o HTML seja auto-contido.
+* Envie **ambos** os arquivos: o `.qmd` e o `.html` resultante.
+
+---
+
+## 1. Configuração Inicial
+
+Este primeiro bloco de código carrega os pacotes necessários.
+A opção de chunk `include: false` significa que o código será executado, mas nem o código nem sua saída aparecerão no documento HTML final. Isso é útil para códigos de configuração.
+
+```{r setup}
+#| include: false
+#| message: false
+#| warning: false
+
+# Carregue o pacote tidyverse, que inclui ggplot2 e dplyr
+library(tidyverse)
+```
+
+Agora que o `tidyverse` está carregado, podemos acessar o conjunto de dados `mpg`.
+
+```{r verificar_mpg}
+#| echo: true 
+#| eval: true
+
+# Vamos dar uma olhada nas primeiras linhas do dataset mpg
+# e na sua estrutura para nos familiarizarmos.
+head(mpg)
+str(mpg)
+?mpg # Para ver a documentação do dataset
+```
+
+---
+
+## 2. Primeiro Gráfico: Consumo na Estrada vs. Cilindrada
+
+Nesta seção, você criará um gráfico de dispersão para explorar a relação entre a cilindrada do motor (`displ`) e o consumo de combustível na estrada (`hwy`), usando o dataset `mpg`.
+
+**Tarefa:**
+
+1.  Crie um gráfico de dispersão (`geom_point`) com `displ` no eixo x e `hwy` no eixo y.
+2.  Mapeie a variável `class` (tipo de carro) para a estética `color` dos pontos.
+3.  Adicione um título informativo ao gráfico e rótulos apropriados para os eixos x e y (em português).
+4.  Escreva uma breve interpretação do gráfico na seção de texto abaixo do bloco de código.
+
+```{r scatter_displ_hwy}
+#| echo: true  # Mostra o código no documento final
+#| eval: true   # Executa o código
+#| fig-cap: "Gráfico de dispersão: Consumo na estrada (hwy) vs. Cilindrada do motor (displ), colorido por classe do veículo."
+#| fig-width: 8
+#| fig-height: 5
+
+# Seu código ggplot2 aqui para criar o gráfico de dispersão.
+# Lembre-se de usar ggplot(), geom_point() e labs().
+
+ggplot(data = mpg, aes(x = displ, y = hwy, color = class)) +
+    geom_point() +
+    labs(
+        title = "Relação entre Cilindrada do Motor e Consumo na Estrada",
+        x = "Cilindrada do Motor (litros)",
+        y = "Consumo na Estrada (milhas por galão)",
+        color = "Classe do Veículo"
+    )
+
+```
+
+**Interpretação do Gráfico de Dispersão:**
+
+*Escreva sua interpretação aqui. O que você observa sobre a relação entre `displ` e `hwy`? Como a `class` do veículo parece influenciar essa relação?*
+
+A análise do gráfico mostra uma forte relação inversa: quanto maior o motor de um carro (displ), menor sua eficiência na estrada (hwy).
+
+Essa tendência é nitidamente segmentada pela class do veículo. De um lado, compactos e subcompactos, com motores pequenos, formam um grupo de alta eficiência. No extremo oposto, SUVs e picapes, com motores grandes, agrupam-se na faixa de baixa eficiência.
+
+Portanto, a categoria do veículo é um fator decisivo, ditando que carros maiores e mais pesados são, previsivelmente, os que mais consomem combustível.
+
+---
+
+## 3. Adicionando uma Linha de Suavização
+
+Vamos aprimorar o gráfico anterior adicionando uma linha de suavização para visualizar melhor a tendência geral.
+
+**Tarefa:**
+
+1.  Copie o código do gráfico anterior.
+2.  Adicione uma camada `geom_smooth()` ao gráfico. Mantenha o mapeamento de cores por `class` para a linha de suavização também, se desejar (ou crie uma linha de suavização geral).
+3.  Observe a linha (ou linhas) de suavização. O que ela(s) sugere(m)?
+
+```{r scatter_smooth}
+#| echo: true
+#| eval: true
+#| fig-cap: "Dispersão de hwy vs. displ com linha de suavização, por classe."
+#| fig-width: 8
+#| fig-height: 5
+
+# Seu código ggplot2 aqui (baseado no anterior, adicionando geom_smooth).
+# Dica: você pode adicionar geom_smooth() diretamente ao seu código ggplot anterior.
+# Considere se quer uma linha de suavização geral ou uma para cada 'class'.
+
+ggplot(data = mpg, aes(x = displ, y = hwy, color = class)) +
+    geom_point() +
+    suppressWarnings(geom_smooth(aes(linetype = class))) +
+    # facet_wrap(~ class, nrow = 2) +
+    labs(
+        title = "Relação entre Cilindrada do Motor e Consumo na Estrada",
+        x = "Cilindrada do Motor (litros)",
+        y = "Consumo na Estrada (milhas por galão)",
+        color = "Classe do Veículo"
+    )
+
+```
+
+**Interpretação da Linha de Suavização:**
+
+*O que a linha de suavização (ou as linhas, se você fez por classe) indica sobre a tendência da relação entre `displ` e `hwy`? A relação parece ser linear?*
+
+Com base no novo gráfico, aqui está uma resposta resumida:
+
+As linhas de suavização, uma para cada classe de veículo, confirmam a tendência negativa em todas as categorias: um motor maior (displ) leva a uma menor eficiência (hwy).
+
+A relação dentro de cada classe é representada como aproximadamente linear. No entanto, o fato de as linhas não serem paralelas sugere que o impacto do aumento do motor na eficiência varia entre as classes de veículos.
+
+---
+
+## 4. Explorando Consumo com Boxplots
+
+Boxplots são úteis para comparar distribuições de uma variável contínua entre diferentes grupos de uma variável categórica.
+
+**Tarefa:**
+
+1.  Crie um boxplot que mostre a distribuição do consumo na estrada (`hwy`) para cada tipo de tração (`drv`).
+2.  Adicione um título e rótulos apropriados aos eixos (em português).
+3.  Interprete o boxplot.
+
+```{r boxplot_hwy_drv}
+#| echo: true
+#| eval: true
+#| fig-cap: "Boxplot do consumo na estrada (hwy) por tipo de tração (drv)."
+#| fig-width: 7
+#| fig-height: 5
+
+# Seu código ggplot2 aqui para criar o boxplot.
+# Use geom_boxplot(). Você pode mapear 'drv' para o preenchimento (fill) também.
+
+ggplot(data = mpg, aes(x = drv, y = hwy, fill = drv)) +
+    geom_boxplot() +
+    labs(
+        title = "Distribuição do Consumo na Estrada por Tipo de Tração",
+        x = "Tipo de Tração",
+        y = "Consumo na Estrada (milhas por galão)",
+        fill = "Tipo de Tração"
+    )
+
+```
+
+**Interpretação do Boxplot:**
+
+*Quais tipos de tração (`drv`) tendem a ter maior/menor consumo na estrada (`hwy`)? Existem diferenças notáveis na variabilidade ou presença de outliers entre os grupos?*
+
+Consumo: Veículos com tração dianteira (f) são, em média, os mais eficientes (menor consumo). Em contraste, os veículos com tração 4x4 (4) tendem a ter a menor eficiência (maior consumo).
+
+Variabilidade e Outliers: A tração traseira (r) apresenta a maior variação de eficiência entre seus modelos. O grupo de tração dianteira (f) se destaca pela presença de vários outliers, indicando a existência de carros excepcionalmente econômicos nessa categoria.
+
+---
+
+## 5. Sumarizando Dados com `dplyr` e Visualizando
+
+Muitas vezes, queremos calcular estatísticas resumo e depois visualizá-las.
+
+**Tarefa:**
+
+1.  Use `dplyr` para calcular o consumo médio na cidade (`cty`) para cada fabricante (`manufacturer`).
+    * Agrupe os dados por `manufacturer`.
+    * Calcule a média de `cty` para cada grupo.
+2.  Crie um gráfico de colunas (`geom_col`) para visualizar essas médias.
+    * Como existem muitos fabricantes, pode ser útil reordenar as barras para melhor visualização (e.g., da maior para a menor média). Dica: use `reorder()` dentro de `aes()`.
+3.  Adicione um título e rótulos apropriados (em português).
+4.  Interprete o gráfico.
+
+```{r dplyr_barplot}
+#| echo: true
+#| eval: true
+#| fig-cap: "Consumo médio na cidade (cty) por fabricante."
+#| fig-width: 10 # Aumentar a largura para melhor visualização dos fabricantes
+#| fig-height: 6
+
+# Passo 1: Usar dplyr para sumarizar os dados
+# Crie um objeto chamado 'sumario_cty_fabricante'
+# Use group_by() e summarise() com mean().
+# sumario_cty_fabricante <- mpg %>% ...
+
+# Ver o sumário (opcional, mas bom para verificar durante o desenvolvimento)
+# print(sumario_cty_fabricante)
+
+# Passo 2: Criar o gráfico de colunas com ggplot2
+# Use o 'sumario_cty_fabricante' como dados.
+# Use geom_col().
+# Para reordenar, use aes(x = reorder(manufacturer, -media_cty), y = media_cty)
+# Lembre-se de adicionar labs() e possivelmente theme() para ajustar os rótulos do eixo x.
+
+# Passo 1: Usar dplyr para sumarizar os dados
+sumario_cty_fabricante <- mpg %>%
+    group_by(manufacturer) %>%
+    summarise(media_cty = mean(cty, na.rm = TRUE))
+
+# Ver o sumário (opcional, mas bom para verificar durante o desenvolvimento)
+print(sumario_cty_fabricante)
+
+# Passo 2: Criar o gráfico de colunas com ggplot2
+ggplot(data = sumario_cty_fabricante, aes(x = reorder(manufacturer, -media_cty), y = media_cty)) +
+    geom_col(fill = "steelblue", alpha = 0.8) +
+    labs(
+        title = "Consumo Médio na Cidade por Fabricante",
+        x = "Fabricante",
+        y = "Consumo Médio na Cidade (milhas por galão)"
+    ) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+**Interpretação do Gráfico de Colunas:**
+
+*Quais fabricantes têm, em média, o melhor e o pior consumo na cidade? Há alguma surpresa?*
+
+Melhor Consumo: A Honda é a fabricante com a melhor média de consumo na cidade (24.4 mpg).
+Pior Consumo: A Lincoln apresenta o pior desempenho (11.3 mpg), seguida de perto pela Land Rover (11.5 mpg).
+
+Os resultados são, em grande parte, pouco surpreendentes e alinham-se bem com a reputação das marcas. Não é uma surpresa ver a Honda no topo, conhecida por seus carros compactos e econômicos. Da mesma forma, é esperado que marcas de luxo com veículos grandes e pesados, como Lincoln e Land Rover, fiquem nas últimas posições.
+
+---
+
+## 6. Tarefas Opcionais (Para Explorar Mais)
+
+Estas tarefas são opcionais e servem para você praticar um pouco mais com `ggplot2` e Quarto.
+
+### Opcional 1: Facetas
+
+Pegue o gráfico de dispersão de `hwy` vs `displ` (tarefa 2 ou 3) e use `facet_wrap(~ cyl)` para criar painéis separados para cada número de cilindros (`cyl`). Como isso muda sua interpretação?
+
+```{r opcional_facetas, eval=TRUE}
+#| echo: true # Mude para true se for tentar
+#| fig-cap: "Dispersão de hwy vs. displ, facetado por número de cilindros."
+#| fig-width: 9
+#| fig-height: 6
+
+# Seu código aqui (copie e modifique o código da tarefa 2 ou 3)
+# Adicione: + facet_wrap(~ cyl, nrow = 2) # ou ncol, como preferir
+
+ggplot(data = mpg, aes(x = displ, y = hwy, color = class)) +
+    geom_point() +
+    geom_smooth(method = "lm", se = TRUE) +
+    facet_wrap(~ cyl, nrow = 2) +
+    labs(
+        title = "Relação entre Cilindrada do Motor e Consumo na Estrada por Número de Cilindros",
+        x = "Cilindrada do Motor (litros)",
+        y = "Consumo na Estrada (milhas por galão)",
+        color = "Classe do Veículo"
+    )
+
+```
+
+*Sua interpretação aqui (se fizer esta tarefa opcional).*
+
+A divisão do gráfico por class de veículo confirma a principal conclusão: a relação negativa entre o tamanho do motor (displ) e a eficiência na estrada (hwy) é um padrão consistente e robusto, que se repete dentro de quase todas as categorias de veículos.
+
+Isso demonstra que a tendência geral não é um acaso estatístico, mas sim uma característica fundamental do mercado automotivo analisado.
+
+### Opcional 2: Outro `geom`
+
+Experimente usar um `geom` diferente em um dos seus gráficos. Por exemplo:
+
+* Adicione `geom_jitter()` ao seu boxplot da tarefa 4 para ver melhor a distribuição dos pontos.
+* Crie um gráfico de violino (`geom_violin`) em vez do boxplot na tarefa 4.
+
+```{r opcional_outro_geom, eval=TRUE}
+#| echo: true
+#| fig-cap: "Exemplo de outro geom (e.g., gráfico de violino)."
+#| fig-width: 7
+#| fig-height: 5
+
+# Seu código aqui (e.g., para geom_violin)
+
+# Gráfico de violino como alternativa ao boxplot
+ggplot(data = mpg, aes(x = drv, y = hwy, fill = drv)) +
+    geom_violin(alpha = 0.7) +
+    geom_boxplot(width = 0.1, fill = "white", alpha = 0.8) +
+    labs(
+        title = "Distribuição do Consumo na Estrada por Tipo de Tração (Gráfico de Violino)",
+        x = "Tipo de Tração",
+        y = "Consumo na Estrada (milhas por galão)",
+        fill = "Tipo de Tração"
+    )
+
+```
+
+*Sua interpretação aqui (se fizer esta tarefa opcional).*
+
+Este gráfico é uma síntese visual poderosa que integra múltiplas variáveis e confirma as conclusões anteriores de forma simultânea. Ele demonstra que:
+
+- A relação negativa entre o tamanho do motor (displ) e a eficiência (hwy) é o padrão dominante.
+- Características como maior número de cilindros (tamanho), tração 4x4 (forma) e classe SUV/picape (cor) estão fortemente correlacionadas com motores grandes e baixa eficiência.
+- Em contraste, carros de baixa cilindrada, tração dianteira e da classe compacta formam o grupo dos mais eficientes.
+
+Em resumo, o gráfico pinta um retrato claro dos dois extremos do espectro automotivo: o carro econômico versus o de alto consumo.
+
+### Opcional 3: Personalização Avançada
+
+Escolha um dos seus gráficos e personalize sua aparência:
+
+* Mude o tema (e.g., `+ theme_bw()`, `+ theme_minimal()`, `+ theme_light()`).
+* Altere os títulos da legenda (e.g., `labs(color = "Nova Legenda")`).
+
+```{r opcional_personalizacao, eval=TRUE}
+#| echo: true
+#| fig-cap: "Gráfico com personalização de tema e legenda."
+
+# Seu código aqui
+
+# Personalização do gráfico de dispersão com tema e legenda customizados
+ggplot(data = mpg, aes(x = displ, y = hwy, color = class)) +
+    geom_point(size = 2, alpha = 0.8) +
+    geom_smooth(method = "loess", se = TRUE) +
+    labs(
+        title = "Consumo na Estrada vs. Cilindrada do Motor",
+        subtitle = "Análise por classe de veículo com tema personalizado",
+        x = "Cilindrada do Motor (litros)",
+        y = "Consumo na Estrada (milhas por galão)",
+        color = "Tipo de Veículo",
+        caption = "Fonte: Dataset mpg"
+    ) +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(size = 14, face = "bold"),
+        plot.subtitle = element_text(size = 12, color = "gray60"),
+        legend.position = "bottom",
+        legend.title = element_text(face = "bold")
+    ) +
+    scale_color_brewer(type = "qual", palette = "Set2")
+
+```
+
+*Descreva as personalizações que você fez (se fizer esta tarefa opcional).*
+
+Para resumir, as personalizações transformaram um gráfico básico em uma visualização mais profissional e informativa ao:
+
+- Melhorar a Clareza: Os pontos foram aumentados e tornados semitransparentes para facilitar a leitura.
+- Alterar o Foco: Em vez de múltiplas linhas por classe, foi usada uma única linha de tendência geral para destacar a relação principal.
+- Aprimorar o Design: O gráfico ganhou um tema visual mais limpo (theme_minimal), uma paleta de cores aprimorada (Set2), novos títulos e uma legenda reposicionada na parte inferior.
+
+### Opcional 4: Interpretação Estendida
+
+Escolha um dos gráficos das tarefas principais e escreva um parágrafo mais detalhado (3-5 frases) sobre os padrões, outliers ou quaisquer outros insights interessantes que você observou.
+
+*Sua interpretação estendida aqui (se fizer esta tarefa opcional).*
+
+O boxplot da eficiência por tipo de tração (drv) revela um padrão de consumo bastante definido entre as categorias. Veículos de tração dianteira (f) não são apenas os mais eficientes em média, mas também se destacam pela presença de múltiplos outliers de alta performance, que provavelmente representam modelos híbridos ou subcompactos excepcionalmente econômicos. Em contrapartida, a categoria de tração traseira (r) exibe a maior variabilidade (a caixa do boxplot mais "alta"), sugerindo que este grupo contém uma mistura heterogênea de veículos, desde sedãs até carros esportivos de baixo rendimento. Por fim, a baixa variabilidade e a baixa mediana dos veículos 4x4 (4) indicam que, com poucas exceções, eles são consistentemente a categoria de maior consumo.
+
+### Opcional 5: Ocultando o Código
+
+Crie um gráfico (pode ser um novo ou uma variação de um anterior) onde o código R **não** é mostrado no documento HTML final, mas o gráfico **é** renderizado. (Dica: use a opção de chunk `echo: false`).
+
+```{r opcional_echo_false, echo=FALSE, eval=TRUE}
+#| fig-cap: "Gráfico gerado com código oculto."
+#| fig-width: 7
+#| fig-height: 5
+
+# Seu código ggplot2 aqui.
+# Lembre-se de mudar eval=FALSE para eval=TRUE para que o gráfico seja gerado.
+
+# Gráfico de densidade do consumo na estrada por tipo de tração
+ggplot(data = mpg, aes(x = hwy, fill = drv)) +
+    geom_density(alpha = 0.7) +
+    labs(
+        title = "Distribuição de Densidade do Consumo na Estrada por Tipo de Tração",
+        x = "Consumo na Estrada (milhas por galão)",
+        y = "Densidade",
+        fill = "Tipo de Tração"
+    ) +
+    theme_minimal() +
+    scale_fill_brewer(type = "qual", palette = "Set1")
+
+```
+
+*(Se você fizer esta tarefa, o código acima não aparecerá, mas o gráfico sim, se `eval=TRUE`)*.
+
+---
+
+## Conclusão e Submissão
+
+Parabéns por completar (ou tentar!) sua primeira tarefa com Quarto!
+
+**Para submeter:**
+
+1.  Certifique-se de que seu nome está no cabeçalho YAML.
+2.  Clique no botão "Render" no RStudio (ou use o comando `quarto render seu_arquivo.qmd` no terminal) para gerar o arquivo HTML.
+3.  Verifique o arquivo HTML gerado para garantir que tudo aparece como esperado (texto, código, saídas, gráficos).
+4.  Envie **ambos** os arquivos: `seu_arquivo.qmd` e `seu_arquivo.html`.
+
+Bom trabalho!
