@@ -1,7 +1,7 @@
 ---
 title: "PPCA0026 - Tarefa de Casa: Simulação, Poder e Decisão"
 subtitle: "Aplicando os Conceitos da Semana 4"
-author: "Sílvio Ferreira Gomes Júnior"
+author: "Ítalo Vinícius Pereira Guimarães / Sílvio Ferreira Gomes Júnior"
 date: "2025-07-04"
 format:
   html:
@@ -370,40 +370,268 @@ summary(selecao_forward)
 ```
 
 ```{r prob3b_analysis}
-# 2. Identifique os subgrupos no conjunto de validação
-# ...
+# 1. Criar conjunto de validação
+validacao <- as.data.frame(Default[-treino_indices, ])
 
-# 3. Avaliar desempenho geral
-# prob_geral <- predict(modelo_logistico, newdata = validacao, type = "response")
-# Classificar os dados usando um ponto de corte igual a 0.5 (para simplificar)
-# pred_geral <- ifelse(prob_geral > 0.5, "Yes", "No")
-# Gerar a matriz de confusão geral (Confusion Matrix, cm)
-# cm_geral <- table(Observado = validacao$default, Previsto = pred_geral)
+# 2. Usar o modelo selecionado para fazer previsões
+prob_geral <- predict(selecao_forward, newdata = validacao, type = "response")
 
-# 4. Realize a Análise de Sensibilidade
-# Criar a matriz de Confusão dos Estudantes
-# ...
-# Criar a matriz de Confusão dos Não-Estudantes
-# ...
+# 3. Classificar usando ponto de corte de 0.5
+pred_geral <- ifelse(prob_geral > 0.5, "Yes", "No")
 
-# 4.5
-# Função para calcular o custo a partir da matriz de confusão
-# ...
+# 4. Matriz de confusão geral
+cm_geral <- table(Observado = validacao$default, Previsto = pred_geral)
+print("Matriz de Confusão Geral:")
+print(cm_geral)
 
-# Custo Geral
-# ...
+# 5. Identificar subgrupos no conjunto de validação
+estudantes <- validacao[validacao$student == "Yes", ]
+nao_estudantes <- validacao[validacao$student == "No", ]
 
-# Custo Estudantes
-# ...
+n_estudantes <- nrow(estudantes)
+n_nao_estudantes <- nrow(nao_estudantes)
 
-# Custo Não-Estudantes
-# ...
+print(paste("Número de estudantes na validação:", n_estudantes))
+print(paste("Número de não-estudantes na validação:", n_nao_estudantes))
 
-# 5. ATUALIZAÇÃO: Calcule o custo médio por pessoa para cada grupo
-# custo_medio_estudantes <- custo_total_estudantes / n_estudantes
-# ...
+# 6. Previsões para cada subgrupo
+prob_estudantes <- predict(selecao_forward, newdata = estudantes, type = "response")
+pred_estudantes <- ifelse(prob_estudantes > 0.5, "Yes", "No")
+
+prob_nao_estudantes <- predict(selecao_forward, newdata = nao_estudantes, type = "response")
+pred_nao_estudantes <- ifelse(prob_nao_estudantes > 0.5, "Yes", "No")
+
+# 7. Matrizes de confusão por subgrupo
+cm_estudantes <- table(Observado = estudantes$default, Previsto = pred_estudantes)
+cm_nao_estudantes <- table(Observado = nao_estudantes$default, Previsto = pred_nao_estudantes)
+
+print("Matriz de Confusão - Estudantes:")
+print(cm_estudantes)
+print("Matriz de Confusão - Não-Estudantes:")
+print(cm_nao_estudantes)
+
+# 8. Função para calcular custo a partir da matriz de confusão
+# Assumindo custos: FN (não detectar inadimplência) = $5000, FP (erro falso positivo) = $500
+calcular_custo <- function(cm, custo_fn = 5000, custo_fp = 500) {
+  # Estrutura da matriz: linhas = observado, colunas = previsto
+  # cm[1,1] = TN (True Negative), cm[1,2] = FP (False Positive)
+  # cm[2,1] = FN (False Negative), cm[2,2] = TP (True Positive)
+  
+  if (nrow(cm) == 2 && ncol(cm) == 2) {
+    fn <- cm[2, 1]  # Falso Negativo
+    fp <- cm[1, 2]  # Falso Positivo
+    custo_total <- fn * custo_fn + fp * custo_fp
+  } else {
+    # Caso não haja exemplos de uma das classes
+    custo_total <- 0
+  }
+  
+  return(custo_total)
+}
+
+# 9. Calcular custos totais
+custo_total_geral <- calcular_custo(cm_geral)
+custo_total_estudantes <- calcular_custo(cm_estudantes)
+custo_total_nao_estudantes <- calcular_custo(cm_nao_estudantes)
+
+print(paste("Custo Total Geral: $", format(custo_total_geral, big.mark = ",")))
+print(paste("Custo Total Estudantes: $", format(custo_total_estudantes, big.mark = ",")))
+print(paste("Custo Total Não-Estudantes: $", format(custo_total_nao_estudantes, big.mark = ",")))
+
+# 10. Calcular custo médio por pessoa para cada grupo
+custo_medio_geral <- custo_total_geral / nrow(validacao)
+custo_medio_estudantes <- custo_total_estudantes / n_estudantes
+custo_medio_nao_estudantes <- custo_total_nao_estudantes / n_nao_estudantes
+
+print(paste("Custo Médio Geral por pessoa: $", round(custo_medio_geral, 2)))
+print(paste("Custo Médio Estudantes por pessoa: $", round(custo_medio_estudantes, 2)))
+print(paste("Custo Médio Não-Estudantes por pessoa: $", round(custo_medio_nao_estudantes, 2)))
+
+# 11. Análise de métricas de desempenho
+
+# Função para calcular métricas
+calcular_metricas <- function(cm) {
+  if (nrow(cm) == 2 && ncol(cm) == 2) {
+    tn <- cm[1, 1]
+    fp <- cm[1, 2]
+    fn <- cm[2, 1]
+    tp <- cm[2, 2]
+    
+    sensibilidade <- tp / (tp + fn)  # Recall
+    especificidade <- tn / (tn + fp)
+    precisao <- tp / (tp + fp)
+    acuracia <- (tp + tn) / (tp + tn + fp + fn)
+    
+    return(data.frame(
+      Sensibilidade = round(sensibilidade, 3),
+      Especificidade = round(especificidade, 3),
+      Precisao = round(precisao, 3),
+      Acuracia = round(acuracia, 3)
+    ))
+  } else {
+    return(data.frame(
+      Sensibilidade = NA,
+      Especificidade = NA,
+      Precisao = NA,
+      Acuracia = NA
+    ))
+  }
+}
+
+# Calcular métricas para cada grupo
+metricas_geral <- calcular_metricas(cm_geral)
+metricas_estudantes <- calcular_metricas(cm_estudantes)
+metricas_nao_estudantes <- calcular_metricas(cm_nao_estudantes)
+
+print("Métricas de Desempenho:")
+print("Geral:")
+print(metricas_geral)
+print("Estudantes:")
+print(metricas_estudantes)
+print("Não-Estudantes:")
+print(metricas_nao_estudantes)
+
+# 12. Criar tabela resumo
+tabela_resumo <- data.frame(
+  Grupo = c("Geral", "Estudantes", "Não-Estudantes"),
+  N = c(nrow(validacao), n_estudantes, n_nao_estudantes),
+  Custo_Total = c(custo_total_geral, custo_total_estudantes, custo_total_nao_estudantes),
+  Custo_Medio = c(custo_medio_geral, custo_medio_estudantes, custo_medio_nao_estudantes),
+  Sensibilidade = c(metricas_geral$Sensibilidade, metricas_estudantes$Sensibilidade, metricas_nao_estudantes$Sensibilidade),
+  Especificidade = c(metricas_geral$Especificidade, metricas_estudantes$Especificidade, metricas_nao_estudantes$Especificidade),
+  Acuracia = c(metricas_geral$Acuracia, metricas_estudantes$Acuracia, metricas_nao_estudantes$Acuracia)
+)
+
+print("Tabela Resumo da Análise de Sensibilidade:")
+print(tabela_resumo)
+
+# 13. Visualização dos resultados
+# Gráfico de custo médio por grupo
+grafico_custo <- ggplot(tabela_resumo, aes(x = Grupo, y = Custo_Medio, fill = Grupo)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste("$", round(Custo_Medio, 2))), vjust = -0.5) +
+  labs(
+    title = "Custo Médio por Pessoa por Grupo",
+    x = "Grupo",
+    y = "Custo Médio ($)",
+    fill = "Grupo"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+print(grafico_custo)
+
+# Gráfico de métricas de desempenho
+metricas_long <- data.frame(
+  Grupo = rep(c("Geral", "Estudantes", "Não-Estudantes"), 3),
+  Metrica = rep(c("Sensibilidade", "Especificidade", "Acurácia"), each = 3),
+  Valor = c(tabela_resumo$Sensibilidade, tabela_resumo$Especificidade, tabela_resumo$Acuracia)
+)
+
+grafico_metricas <- ggplot(metricas_long, aes(x = Grupo, y = Valor, fill = Metrica)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "Métricas de Desempenho por Grupo",
+    x = "Grupo",
+    y = "Valor da Métrica",
+    fill = "Métrica"
+  ) +
+  theme_minimal() +
+  scale_y_continuous(labels = scales::percent)
+
+print(grafico_metricas)
 ```
+
 
 **Análise e Recomendação da Parte B:**
 
-*SUA ANÁLISE E RECOMENDAÇÃO AQUI:* Compare os custos médios por pessoa. Com base nesta análise normalizada, qual é a sua recomendação final?
+Com base na análise de sensibilidade realizada no conjunto de validação do dataset Default, observamos diferenças substanciais no desempenho do modelo entre os subgrupos de estudantes e não-estudantes, revelando importantes implicações para a gestão de risco de crédito.
+
+#### Análise dos Custos Médios
+
+A comparação dos custos médios por pessoa revela uma disparidade significativa entre os grupos:
+
+- **Estudantes**: $166.86 por pessoa
+- **Não-estudantes**: $95.74 por pessoa
+
+Esta diferença de 74% ($71.12 a mais por estudante) indica que o modelo atual é substancialmente menos eficiente para o subgrupo de estudantes. Considerando que temos 884 estudantes no conjunto de validação, esta ineficiência representa um custo adicional de aproximadamente $62,850 comparado ao desempenho ideal.
+
+#### Análise do Desempenho por Métricas
+
+##### Sensibilidade (Detecção de Inadimplentes)
+O modelo apresenta sensibilidade consistentemente baixa para ambos os grupos:
+
+- **Estudantes**: 29.3% (detecta apenas 12 de 41 inadimplentes)
+- **Não-estudantes**: 31.0% (detecta apenas 18 de 58 inadimplentes)
+
+A similaridade nestes valores (diferença de apenas 1.7 pontos percentuais) sugere que o problema não está na capacidade diferencial de detecção, mas sim na calibração geral do modelo para ambos os grupos.
+
+##### Especificidade (Identificação Correta de Não-inadimplentes)
+Ambos os grupos apresentam especificidade excelente:
+
+- **Estudantes**: 99.4%
+- **Não-estudantes**: 99.8%
+
+Esta alta especificidade indica que o modelo é conservador, errando poucos clientes como inadimplentes quando não são.
+
+##### Análise das Taxas de Erro
+**Taxa de Falsos Negativos (o erro mais custoso):**
+
+- **Estudantes**: 70.7% (29 de 41 inadimplentes não detectados)
+- **Não-estudantes**: 69.0% (40 de 58 inadimplentes não detectados)
+
+**Taxa de Falsos Positivos:**
+
+- **Estudantes**: 0.6% (5 de 843 não-inadimplentes classificados erroneamente)
+- **Não-estudantes**: 0.2% (5 de 2057 não-inadimplentes classificados erroneamente)
+
+#### Interpretação dos Resultados
+
+##### Causa Raiz do Problema
+O modelo de regressão logística selecionado inclui um coeficiente negativo significativo para `studentYes` (-0.7872), indicando que, mantendo o saldo constante, estudantes têm menor probabilidade predita de inadimplência. Este ajuste pode estar criando um viés sistemático que dificulta a detecção de estudantes inadimplentes, mesmo quando outros fatores de risco estão presentes.
+
+##### Impacto Financeiro
+Com custos de $5,000 por falso negativo e $500 por falso positivo:
+
+- **Estudantes** geram $145,000 em custos de falsos negativos vs. $2,500 em falsos positivos
+- **Não-estudantes** geram $200,000 em custos de falsos negativos vs. $2,500 em falsos positivos
+
+A proporção custo por pessoa é significativamente maior para estudantes devido à menor base populacional, mas taxa similar de falsos negativos.
+
+#### Recomendação Final
+
+##### Estratégia Recomendada: Segmentação e Otimização Diferenciada
+
+1. **Implementação Imediata - Ajuste de Thresholds:**
+
+   - Reduzir o ponto de corte para estudantes de 0.5 para aproximadamente 0.35
+   - Manter threshold de 0.5 para não-estudantes
+   - **Impacto esperado**: Redução de 40-50% nos falsos negativos entre estudantes
+
+2. **Desenvolvimento de Modelos Específicos:**
+
+   - Criar um modelo otimizado exclusivamente para estudantes, potencialmente incluindo variáveis como área de estudo, ano acadêmico, ou histórico de trabalho
+   - Manter modelo atual para não-estudantes, que já apresenta desempenho relativamente superior
+
+3. **Monitoramento e Validação Contínua:**
+
+   - Implementar sistemas de monitoramento separados por subgrupo
+   - Realizar análises trimestrais para detectar mudanças nos padrões de cada grupo
+   - Validar regularmente se as diferenças observadas persistem em novos dados
+
+##### Justificativa da Recomendação
+
+A análise normalizada (custo médio por pessoa) é fundamental para uma decisão justa, pois evita que o tamanho dos grupos influencie inadequadamente a estratégia. O custo médio 74% superior para estudantes justifica claramente a necessidade de uma abordagem diferenciada.
+
+Economicamente, mesmo uma redução modesta de 25% nos falsos negativos entre estudantes (aproximadamente 7 casos) resultaria em economia de $35,000, enquanto um aumento proporcional em falsos positivos custaria apenas $3,500-4,000 adicionais, gerando benefício líquido superior a $30,000.
+
+##### Considerações Éticas e Regulatórias
+
+É crucial garantir que a segmentação proposta seja:
+
+- Baseada em diferenças estatísticas legítimas nos dados
+- Livre de discriminação indevida ou viés não justificado
+- Documentada adequadamente para auditoria regulatória
+- Regularmente revisada para prevenir perpetuação de desigualdades
+
+Esta abordagem segmentada não apenas melhora a eficiência econômica, mas também promove maior equidade ao reconhecer e endereçar as diferentes necessidades de modelagem para cada subgrupo populacional.
