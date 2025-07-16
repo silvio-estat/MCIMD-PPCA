@@ -1,0 +1,173 @@
+---
+title: "PPCA0026 - Tarefa de Casa: Teoria da Decisão Bayesiana na Prática"
+subtitle: "Aplicando os Conceitos da Semana 5"
+author:  "Ítalo Guimarães / Sílvio Júnior"
+date: "2025-07-11"
+format:
+  html:
+    embed-resources: true
+    toc: true
+    toc-depth: 3
+    theme: cosmo
+    code-fold: show
+    code-tools: true
+---
+
+**Prazo de Entrega:** 2025-06-29 23:59
+
+## Introdução
+
+Nesta tarefa, você aprofundará seu conhecimento sobre o Framework de Decisão Bayesiana. O objetivo é ir além da introdução vista em aula e aplicar o framework completo para tomar decisões ótimas sob incerteza, tanto com crenças a priori quanto com crenças atualizadas por dados (a posteriori).
+
+**Instruções Gerais:**
+
+* Este arquivo serve como seu template de resposta. Preencha as seções marcadas com seu código R, as saídas geradas, e suas análises textuais.
+* **Entrega:** Envie dois arquivos: este `.qmd` completo e o arquivo `.html` auto-contido resultante.
+
+---
+
+## Problema 1: Decisão Ótima com Priori e Custos Discretos
+
+Neste problema, você atuará como um consultor para uma empresa farmacêutica, usando a teoria da decisão para recomendar uma estratégia para o lançamento de um novo medicamento.
+
+### Cenário
+
+Uma empresa está testando um novo medicamento. A decisão a ser tomada é se deve **"Lançar"** o medicamento com base nos resultados de um ensaio clínico ou **"Não Lançar"**.
+
+* **Hipótese Nula ($H_0$)**: O medicamento não tem efeito (a diferença média de melhora, `d`, é 0).
+* **Hipótese Alternativa ($H_1$)**: O medicamento tem um efeito ($d > 0$).
+* **Custos dos Erros**:
+    * **Erro Tipo I (Falso Positivo):** Lançar um medicamento ineficaz. O custo ($C_I$) é de **$1,000,000**.
+    * **Erro Tipo II (Falso Negativo):** Não lançar um medicamento que é eficaz. O custo ($C_{II}$) depende do tamanho do efeito perdido. A empresa estima que $C_{II}(d) = d \times \$10,000,000$.
+* **Crença a Priori**: Antes do ensaio clínico final, a diretoria acredita que há **50% de chance de o medicamento não ter efeito** ($P(d=0) = 0.5$). Se ele tiver um efeito, eles acreditam que as probabilidades são: 50% de chance de ser um efeito "pequeno" ($d=0.2$), 30% de ser "médio" ($d=0.5$), e 20% de ser "grande" ($d=1.0$).
+* **O Ensaio Clínico**: O ensaio será realizado com `n=50` pacientes por grupo e $\sigma=1$.
+
+### Parte A: A Decisão a Priori
+
+#### 1. Calcule as Probabilidades a Priori
+
+```{r prob1a_priors}
+# Carregue os pacotes necessários
+library(tidyverse)
+
+# Calcule as probabilidades a priori para cada estado do mundo:
+# d=0, d=0.2, d=0.5, d=1.0
+# Defina as probabilidades a priori
+probabilidades_a_priori <- c(0.5, 0.25, 0.15, 0.10)  # Exemplo de probabilidades a priori
+# Defina os estados do mundo correspondentes
+estados_do_mundo <- c(0, 0.2, 0.5, 1.0)
+# Crie um data frame para armazenar as probabilidades
+probabilidades_df <- data.frame(
+  Estado = estados_do_mundo,
+  Probabilidade = probabilidades_a_priori
+)
+
+
+# Armazene-as em um vetor ou data frame.
+
+# ... seu código aqui ...
+```
+
+**Análise da Tarefa 1.A.1:**
+
+*APRESENTE SUAS PROBABILIDADES A PRIORI AQUI (e.g., em uma tabela `knitr::kable`).*
+
+#### 2. Simule o Risco Esperado a Priori
+
+```{r prob1a_risk_sim}
+# Você precisará de uma função para calcular o poder, como a da tarefa anterior.
+# Se necessário, defina-a aqui.
+calcular_poder <- function(n, d, sigma, alpha, num_sim = 1000) {
+  # ... (código da função de poder) ...
+}
+
+# Defina os parâmetros da simulação
+# ...
+
+# Escreva seu loop ou use `sapply` para calcular o Risco(α) para uma gama de α.
+# ... seu código aqui ...
+```
+
+#### 3. Encontre a Regra de Decisão Ótima
+
+```{r prob1a_plot_risk}
+# Plote o Risco Esperado vs. α
+# ... seu código ggplot2 aqui ...
+
+# Encontre e reporte o α_ótimo e o risco mínimo correspondente
+# ... seu código aqui ...
+```
+
+**Análise da Tarefa 1.A.3:**
+
+*INCLUA SEU GRÁFICO AQUI. Reporte o $\alpha_{ótimo}$ e o risco mínimo.*
+
+#### 4. Tome a Decisão a Priori
+
+```{r prob1a_prior_decision}
+# Calcule o risco da estratégia "Não Lançar"
+# ... seu código aqui ...
+
+# Compare os riscos e determine a ação ótima a priori
+# ... seu código aqui ...
+```
+
+**Análise da Tarefa 1.A.4:**
+
+*SUA ANÁLISE AQUI:* Qual é a ação ótima a priori e por quê?
+
+### Parte B: A Decisão a Posteriori (Atualização com Dados)
+
+#### Cenário 1: Dados Desanimadores ($\hat{d}_1 = 0.15, SE = 0.2$)
+
+```{r cenario1}
+# 1. Calcule a verossimilhança para cada estado do mundo d
+# ...
+
+# 2. Calcule as probabilidades a posteriori
+# ...
+
+# 3. Calcule o Risco Esperado a Posteriori para "Lançar" e "Não Lançar"
+# ...
+
+# 4. Determine a ação ótima a posteriori
+# ...
+```
+
+**Análise do Cenário 1:**
+
+*SUA ANÁLISE AQUI:* Apresente suas probabilidades a posteriori e os riscos calculados. Qual é a ação ótima? Como os dados mudaram a decisão?
+
+#### Cenário 2: Dados Promissores ($\hat{d}_2 = 0.60, SE = 0.2$)
+
+```{r cenario2}
+# Repita os passos 1-4 para o Cenário 2
+# ... seu código aqui ...
+```
+
+**Análise do Cenário 2:**
+
+*SUA ANÁLISE AQUI:* Apresente suas probabilidades a posteriori e os riscos calculados para este cenário. Qual é a ação ótima? Como estes dados diferentes levaram a uma conclusão diferente (ou reforçaram a anterior)?
+
+---
+
+## Problema 2: Estendendo para o Caso Contínuo (Desafio Opcional)
+
+### Tarefa
+
+1.  **Formule o Risco como uma Integral:**
+    *SUA EXPLICAÇÃO AQUI.*
+
+2.  **Implemente a Integração por Monte Carlo:**
+    ```{r prob2_mc_integration}
+    # ... seu código para a simulação de Monte Carlo aqui ...
+    ```
+
+3.  **Encontre a Regra e a Decisão Ótimas:**
+    ```{r prob2_optimal_continuous}
+    # ... seu código para encontrar e reportar alpha_ótimo e a decisão ótima ...
+    ```
+
+**Análise do Problema 2:**
+
+*SUA ANÁLISE AQUI:* Compare os resultados do caso contínuo com os do caso discreto. Eles são similares? O que isso sugere sobre a modelagem de crenças a priori?
