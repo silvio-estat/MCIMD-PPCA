@@ -52,40 +52,105 @@ library(tidyverse)
 
 # Calcule as probabilidades a priori para cada estado do mundo:
 # d=0, d=0.2, d=0.5, d=1.0
-# Defina as probabilidades a priori
-probabilidades_a_priori <- c(0.5, 0.25, 0.15, 0.10)  # Exemplo de probabilidades a priori
-# Defina os estados do mundo correspondentes
+
+# Probabilidade de não ter efeito
+p_nulo <- 0.5
+
+# Probabilidades condicionais para os efeitos, dado que há efeito
+p_pequeno <- 0.5
+p_medio   <- 0.3
+p_grande  <- 0.2
+
+# Probabilidades marginais
+p_efeito <- 1 - p_nulo
+p_d_0.2  <- p_efeito * p_pequeno   # 0.5 * 0.5 = 0.25
+p_d_0.5  <- p_efeito * p_medio     # 0.5 * 0.3 = 0.15
+p_d_1.0  <- p_efeito * p_grande    # 0.5 * 0.2 = 0.10
+
+#Vetor de estados e probabilidades
 estados_do_mundo <- c(0, 0.2, 0.5, 1.0)
-# Crie um data frame para armazenar as probabilidades
+probabilidades_a_priori <- c(p_nulo, p_d_0.2, p_d_0.5, p_d_1.0)
+
+# Armazene-as em um vetor ou data frame.
 probabilidades_df <- data.frame(
   Estado = estados_do_mundo,
   Probabilidade = probabilidades_a_priori
 )
 
+print(probabilidades_df)
 
-# Armazene-as em um vetor ou data frame.
+knitr::kable(probabilidades_df, caption = "Probabilidades a Priori para cada estado")
 
-# ... seu código aqui ...
 ```
 
 **Análise da Tarefa 1.A.1:**
 
-*APRESENTE SUAS PROBABILIDADES A PRIORI AQUI (e.g., em uma tabela `knitr::kable`).*
+A tabela acima mostra que, de acordo com as crenças da diretoria, há 50% de chance do medicamento não ter efeito (d = 0). Caso haja efeito (probabilidade 0,5), ele pode ser pequeno (d = 0,2; 25%), médio (d = 0,5; 15%) ou grande (d = 1,0; 10%). Essas probabilidades foram obtidas multiplicando a chance de existir efeito (0,5) pelas probabilidades condicionais de cada tamanho de efeito. Assim, temos uma distribuição discreta para os possíveis estados do mundo, que será usada para calcular os riscos esperados nas próximas etapas.
 
 #### 2. Simule o Risco Esperado a Priori
 
 ```{r prob1a_risk_sim}
 # Você precisará de uma função para calcular o poder, como a da tarefa anterior.
 # Se necessário, defina-a aqui.
-calcular_poder <- function(n, d, sigma, alpha, num_sim = 1000) {
-  # ... (código da função de poder) ...
+
+calcular_poder <- function(n, d, sigma, alpha, num_sim = 10000) {
+
+  # Simula estatísticas sob H1 (d > 0)
+  estatisticas <- rnorm(num_sim, mean = d, sd = sigma / sqrt(n))
+  # Calcula o valor crítico para teste unilateral (superior)
+  z_critico <- qnorm(1 - alpha)
+  # Poder: proporção de vezes que rejeita H0
+  poder <- mean(estatisticas > z_critico)
+  return(poder)
 }
 
 # Defina os parâmetros da simulação
-# ...
+
+# Parâmetros do estudo
+n <- 50
+sigma <- 1
+num_sim <- 10000
+
+
+C_I <- 1e6
+
+#C_I <- 200000
+
+# Estados e probabilidades
+estados_do_mundo <- c(0, 0.2, 0.5, 1.0)
+probabilidades_a_priori <- c(0.5, 0.25, 0.15, 0.10)
+
+# Função de custo tipo II
+C_II <- function(d) d * 1e7
+
+# Valores de alpha para simular
+alpha_seq <- seq(0.001, 1, length.out = 100)
 
 # Escreva seu loop ou use `sapply` para calcular o Risco(α) para uma gama de α.
-# ... seu código aqui ...
+
+# Simulação do risco esperado para cada alpha
+risco_esperado <- sapply(alpha_seq, function(alpha) {
+  # Erro tipo I (lançar quando d=0)
+  risco_tipo_I <- probabilidades_a_priori[1] * alpha * C_I
+  
+  # Erro tipo II (não lançar quando d>0)
+  risco_tipo_II <- sum(
+    sapply(2:4, function(i) {
+      d <- estados_do_mundo[i]
+      p <- probabilidades_a_priori[i]
+      poder <- calcular_poder(n, d, sigma, alpha, num_sim)
+      p * (1 - poder) * C_II(d)
+    })
+  )
+  
+  risco_tipo_I + risco_tipo_II
+})
+
+# Data frame para visualização
+df_risco <- data.frame(alpha = alpha_seq, risco = risco_esperado)
+
+# Visualize os primeiros valores
+head(df_risco)
 ```
 
 #### 3. Encontre a Regra de Decisão Ótima
@@ -94,13 +159,34 @@ calcular_poder <- function(n, d, sigma, alpha, num_sim = 1000) {
 # Plote o Risco Esperado vs. α
 # ... seu código ggplot2 aqui ...
 
+library(ggplot2)
+
+ggplot(df_risco, aes(x = alpha, y = risco)) +
+  geom_line(color = "blue", size = 1) +
+  labs(
+    title = "Risco Esperado vs. Alpha",
+    x = expression(alpha),
+    y = "Risco esperado"
+  ) +
+  theme_minimal()
+
 # Encontre e reporte o α_ótimo e o risco mínimo correspondente
-# ... seu código aqui ...
+
+# Encontrar o alpha ótimo e o risco mínimo
+idx_min <- which.min(df_risco$risco)
+alpha_otimo <- df_risco$alpha[idx_min]
+risco_minimo <- df_risco$risco[idx_min]
+
+cat("Alpha ótimo:", round(alpha_otimo, 4), "\n")
+cat("Risco mínimo:", round(risco_minimo, 2), "\n")
+
+
+
 ```
 
 **Análise da Tarefa 1.A.3:**
 
-*INCLUA SEU GRÁFICO AQUI. Reporte o $\alpha_{ótimo}$ e o risco mínimo.*
+Podemos perceber que, em geral, quanto maior o alpha, menor o risco. Isso ocorre porque aumentar o alpha reduz o risco de erro tipo II (não lançar um medicamento eficaz), que tem custos potencialmente muito altos, enquanto o risco de erro tipo I (lançar um medicamento ineficaz) cresce mais lentamente devido à sua probabilidade e custo fixos. O ponto ótimo de alpha é aquele que minimiza o risco total esperado, equilibrando ambos os tipos de erro. No gráfico, esse valor corresponde ao mínimo da curva de risco (`0,53`), e é o alpha que deve ser adotado como regra de decisão ótima a priori.
 
 #### 4. Tome a Decisão a Priori
 
