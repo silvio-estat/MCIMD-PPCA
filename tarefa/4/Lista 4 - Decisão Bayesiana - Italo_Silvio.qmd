@@ -192,7 +192,16 @@ Podemos perceber que, em geral, quanto maior o alpha, menor o risco. Isso ocorre
 
 ```{r prob1a_prior_decision}
 # Calcule o risco da estratégia "Não Lançar"
-# ... seu código aqui ...
+# Calculando o termo pedido:
+termo_tipo_II <- sum(
+  mapply(function(d, p) {
+    poder <- calcular_poder(n, d, sigma, alpha_otimo, num_sim)
+    beta <- 1 - poder
+    p * beta * C_II(d)
+  }, estados_do_mundo, probabilidades_a_priori)
+)
+
+cat("O risco de não lançar o medicamento dado que ele funciona é", round(termo_tipo_II, 2), "\n")
 
 # Compare os riscos e determine a ação ótima a priori
 # ... seu código aqui ...
