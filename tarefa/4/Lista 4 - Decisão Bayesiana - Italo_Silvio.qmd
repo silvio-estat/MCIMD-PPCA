@@ -46,10 +46,15 @@ Uma empresa está testando um novo medicamento. A decisão a ser tomada é se de
 
 #### 1. Calcule as Probabilidades a Priori
 
-```{r prob1a_priors}
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+```{r carrega, echo=FALSE, results='hide'}
 # Carregue os pacotes necessários
 library(tidyverse)
-
+```
+```{r prob1a_priors}
 # Calcule as probabilidades a priori para cada estado do mundo:
 # d=0, d=0.2, d=0.5, d=1.0
 
@@ -93,14 +98,20 @@ A tabela acima mostra que, de acordo com as crenças da diretoria, há 50% de ch
 # Você precisará de uma função para calcular o poder, como a da tarefa anterior.
 # Se necessário, defina-a aqui.
 
+set.seed(2024)
+
 calcular_poder <- function(n, d, sigma, alpha, num_sim = 10000) {
 
   # Simula estatísticas sob H1 (d > 0)
   estatisticas <- rnorm(num_sim, mean = d, sd = sigma / sqrt(n))
+
+  #ajustando as estatísticas para ficarem normalizadas (normal padrao)
+  estatisticas2 <- (estatisticas) / (sigma / sqrt(n))
+
   # Calcula o valor crítico para teste unilateral (superior)
   z_critico <- qnorm(1 - alpha)
   # Poder: proporção de vezes que rejeita H0
-  poder <- mean(estatisticas > z_critico)
+  poder <- mean(abs(estatisticas2) > z_critico)
   return(poder)
 }
 
@@ -176,40 +187,48 @@ ggplot(df_risco, aes(x = alpha, y = risco)) +
 idx_min <- which.min(df_risco$risco)
 alpha_otimo <- df_risco$alpha[idx_min]
 risco_minimo <- df_risco$risco[idx_min]
+```
 
+```{r resultado1, echo=FALSE}
 cat("Alpha ótimo:", round(alpha_otimo, 4), "\n")
+
 cat("Risco mínimo:", round(risco_minimo, 2), "\n")
-
-
-
 ```
 
 **Análise da Tarefa 1.A.3:**
 
-Podemos perceber que, em geral, quanto maior o alpha, menor o risco. Isso ocorre porque aumentar o alpha reduz o risco de erro tipo II (não lançar um medicamento eficaz), que tem custos potencialmente muito altos, enquanto o risco de erro tipo I (lançar um medicamento ineficaz) cresce mais lentamente devido à sua probabilidade e custo fixos. O ponto ótimo de alpha é aquele que minimiza o risco total esperado, equilibrando ambos os tipos de erro. No gráfico, esse valor corresponde ao mínimo da curva de risco (`0,53`), e é o alpha que deve ser adotado como regra de decisão ótima a priori.
+Podemos perceber que o risco mínimo é atingido quando o alpha é `0,29`. Cabe destacar que o ponto ótimo de alpha é aquele que minimiza o risco total esperado, equilibrando ambos os tipos de erro.
 
 #### 4. Tome a Decisão a Priori
 
 ```{r prob1a_prior_decision}
 # Calcule o risco da estratégia "Não Lançar"
-# Calculando o termo pedido:
+options(scipen = 999)
+
 termo_tipo_II <- sum(
   mapply(function(d, p) {
-    poder <- calcular_poder(n, d, sigma, alpha_otimo, num_sim)
-    beta <- 1 - poder
-    p * beta * C_II(d)
-  }, estados_do_mundo, probabilidades_a_priori)
-)
+    p * C_II(d)
+  }, estados_do_mundo[-1], probabilidades_a_priori[-1])
+) 
 
+
+#calule o risco da estratégia "lancar"
+
+termo_tipo_I <- probabilidades_a_priori[1] * C_I
+
+
+
+
+```
+
+```{r resultado2, echo=FALSE}
 cat("O risco de não lançar o medicamento dado que ele funciona é", round(termo_tipo_II, 2), "\n")
-
-# Compare os riscos e determine a ação ótima a priori
-# ... seu código aqui ...
+cat("O risco de lançar o medicamento dado que ele não funciona é", round(termo_tipo_I, 2), "\n")
 ```
 
 **Análise da Tarefa 1.A.4:**
 
-*SUA ANÁLISE AQUI:* Qual é a ação ótima a priori e por quê?
+Como o risco de não lançar é 4,5 vezes maior que o risco de lançar, então a decisão a priori correta seria de `LANÇAR` o medicamento.
 
 ### Parte B: A Decisão a Posteriori (Atualização com Dados)
 
@@ -217,52 +236,119 @@ cat("O risco de não lançar o medicamento dado que ele funciona é", round(term
 
 ```{r cenario1}
 # 1. Calcule a verossimilhança para cada estado do mundo d
-# ...
+dados_crencas <- tibble(
+  estado_d = c(0, 0.2, 0.5, 1.0),
+  priori = c(0.50, 0.25, 0.15, 0.10)
+)
+
+# Dados observados no estudo piloto (Cenário 1)
+d_observado <- 0.15
+erro_padrao_observado <- 0.2
+
+# A verossimilhança é a probabilidade dos dados (d_obs=0.15)
+# para cada possível estado do mundo (d).
+
+dados_atualizados <- dados_crencas %>%
+  mutate(
+    verossimilhanca = dnorm(x = d_observado, 
+                            mean = estado_d, 
+                            sd = erro_padrao_observado)
+  )
 
 # 2. Calcule as probabilidades a posteriori
-# ...
+
+dados_atualizados <- dados_atualizados %>%
+  mutate(
+    numerador_bayes = verossimilhanca * priori,
+    # A Evidência é a soma de todos os numeradores
+    evidencia_total = sum(numerador_bayes),
+    # A probabilidade a posteriori é o numerador dividido pela evidência
+    posteriori = numerador_bayes / evidencia_total
+  )
 
 # 3. Calcule o Risco Esperado a Posteriori para "Lançar" e "Não Lançar"
-# ...
+termo_tipo_II_post <- sum(
+  mapply(function(d, p) {
+    p * C_II(d)
+  }, dados_atualizados$estado_d[-1], dados_atualizados$posteriori[-1])
+) 
 
-# 4. Determine a ação ótima a posteriori
-# ...
+
+termo_tipo_I_post <- dados_atualizados$posteriori[1] * C_I
+
 ```
+
+```{r resultado3, echo=FALSE}
+cat("O risco de não lançar o medicamento dado que ele funciona no cenário 1 é $", round(termo_tipo_II_post, 2), "\n")
+cat("O risco de lançar o medicamento dado que ele não funciona no cenário 1 é $", round(termo_tipo_I_post , 2), "\n")
+
+if (termo_tipo_I_post < termo_tipo_II_post) {
+  cat("A ação ótima a posteriori é LANÇAR o medicamento no cenário 1.\n")
+} else {
+  cat("A ação ótima a posteriori é NÃO LANÇAR o medicamento no cenário 1.\n")
+}
+```
+
 
 **Análise do Cenário 1:**
 
-*SUA ANÁLISE AQUI:* Apresente suas probabilidades a posteriori e os riscos calculados. Qual é a ação ótima? Como os dados mudaram a decisão?
+Como podemos ver, o risco de não lançar o medicamento dado que ele funciona é $991.958,1, enquanto o risco de lançar dado que ele não funciona é $578.705,1. Portanto, a ação ótima a posteriori é `LANÇAR` o medicamento neste cenário. Cabe destacar que, mesmo nesse cenário ruim, na qual a diferença é tão pequena no tamanho do efeito do remédio, como o custo do erro tipo II é muito alto, a decisão será sempre de lançar.
 
 #### Cenário 2: Dados Promissores ($\hat{d}_2 = 0.60, SE = 0.2$)
 
 ```{r cenario2}
-# Repita os passos 1-4 para o Cenário 2
-# ... seu código aqui ...
+# Dados observados no estudo piloto (Cenário 2)
+d_observado <- 0.6
+erro_padrao_observado <- 0.2
+
+# A verossimilhança é a probabilidade dos dados (d_obs=0.6)
+# para cada possível estado do mundo (d).
+
+dados_atualizados <- dados_crencas %>%
+  mutate(
+    verossimilhanca = dnorm(x = d_observado, 
+                            mean = estado_d, 
+                            sd = erro_padrao_observado)
+  )
+
+# 2. Calcule as probabilidades a posteriori
+
+dados_atualizados <- dados_atualizados %>%
+  mutate(
+    numerador_bayes = verossimilhanca * priori,
+    # A Evidência é a soma de todos os numeradores
+    evidencia_total = sum(numerador_bayes),
+    # A probabilidade a posteriori é o numerador dividido pela evidência
+    posteriori = numerador_bayes / evidencia_total
+  )
+
+# 3. Calcule o Risco Esperado a Posteriori para "Lançar" e "Não Lançar"
+termo_tipo_II_post <- sum(
+  mapply(function(d, p) {
+    p * C_II(d)
+  }, dados_atualizados$estado_d[-1], dados_atualizados$posteriori[-1])
+) 
+
+
+termo_tipo_I_post <- dados_atualizados$posteriori[1] * C_I
+
+```
+
+```{r resultado4, echo=FALSE}
+cat("O risco de não lançar o medicamento dado que ele funciona no cenário 2 é $", round(termo_tipo_II_post, 2), "\n")
+cat("O risco de lançar o medicamento dado que ele não funciona no cenário 2 é $", round(termo_tipo_I_post , 2), "\n")
+
+if (termo_tipo_I_post < termo_tipo_II_post) {
+  cat("A ação ótima a posteriori é LANÇAR o medicamento no cenário 2.\n")
+} else {
+  cat("A ação ótima a posteriori é NÃO LANÇAR o medicamento no cenário 2.\n")
+}
 ```
 
 **Análise do Cenário 2:**
 
-*SUA ANÁLISE AQUI:* Apresente suas probabilidades a posteriori e os riscos calculados para este cenário. Qual é a ação ótima? Como estes dados diferentes levaram a uma conclusão diferente (ou reforçaram a anterior)?
+Por fim, no cenário 2, o risco de não lançar o medicamento dado que ele funciona é $4.667.526, enquanto o risco de lançar dado que ele não funciona é $29.976,29. Portanto, a ação ótima a posteriori continua sendo `LANÇAR` o medicamento neste cenário. Isso já era esperado, pois o tamanho do efeito é maior que o do cenário 1, e o custo do erro tipo II é muito alto.
+
+Cabe destacar que, se a diferença entre os custos fossem menores, talvez a decisão entre os cenários fossem diferentes. Por exemplo, se o custo do erro tipo II fosse menor, poderíamos ter uma situação onde a decisão ótima fosse lançar o medicamento no cenário 1, onde a diferença entre o tamanho do efeito era menor, e não lançar no cenário 2, onde o tamanho do efeito é maior. Isso mostra como a modelagem de crenças a priori e os custos dos erros influenciam as decisões.
 
 ---
-
-## Problema 2: Estendendo para o Caso Contínuo (Desafio Opcional)
-
-### Tarefa
-
-1.  **Formule o Risco como uma Integral:**
-    *SUA EXPLICAÇÃO AQUI.*
-
-2.  **Implemente a Integração por Monte Carlo:**
-    ```{r prob2_mc_integration}
-    # ... seu código para a simulação de Monte Carlo aqui ...
-    ```
-
-3.  **Encontre a Regra e a Decisão Ótimas:**
-    ```{r prob2_optimal_continuous}
-    # ... seu código para encontrar e reportar alpha_ótimo e a decisão ótima ...
-    ```
-
-**Análise do Problema 2:**
-
-*SUA ANÁLISE AQUI:* Compare os resultados do caso contínuo com os do caso discreto. Eles são similares? O que isso sugere sobre a modelagem de crenças a priori?
