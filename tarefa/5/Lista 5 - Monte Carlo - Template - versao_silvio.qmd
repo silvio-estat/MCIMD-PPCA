@@ -222,44 +222,159 @@ O objetivo é gerar amostras de uma distribuição Normal Bivariada com alta cor
 # A média é (0, 0) e a matriz de covariância tem 1s na diagonal e 0.9 fora dela.
 # A função `mvtnorm::dmvnorm` pode ser útil para calcular a densidade.
 
+mu <- c(0, 0)
+Sigma <- matrix(c(1, 0.9, 0.9, 1), nrow = 2)
+log_alvo <- function(x) {
+  mvtnorm::dmvnorm(x, mean = mu, sigma = Sigma, log = TRUE)
+}
+
 # Implemente a função do amostrador de Metropolis-Hastings
 metropolis_bvn <- function(n_iter, sigma_prop) {
   # n_iter: número de iterações
   # sigma_prop: desvio padrão da proposta (assumido igual para ambas as dimensões)
   
-  # ... seu código aqui ...
-  # Lembre-se de:
-  # 1. Inicializar a cadeia.
-  # 2. Loop pelas iterações.
-  # 3. Propor um novo ponto.
-  # 4. Calcular a razão de aceitação.
-  # 5. Aceitar ou rejeitar.
-  # 6. Armazenar o ponto na cadeia.
-  # 7. Contar as aceitações.
+  # 1. Inicializar a cadeia
+  cadeia_mk <- matrix(0, nrow = n_iter, ncol = 2)
+  estado_atual <- c(0, 0)  # Ponto inicial (0, 0)
+  cadeia_mk[1, ] <- estado_atual
+  
+  # Contador de aceitações
+  n_aceito <- 0
+  
+  # Matriz de covariância para a proposta (diagonal)
+  Sigma_prop <- diag(c(sigma_prop^2, sigma_prop^2))
+  
+  # 2. Loop pelas iterações
+  for (i in 2:n_iter) {
+    
+    # 3. Propor um novo ponto a partir da distribuição de proposta
+    # Proposta Normal Bivariada centrada no ponto atual
+    proposta <- mvtnorm::rmvnorm(1, mean = estado_atual, sigma = Sigma_prop)
+    proposta <- as.vector(proposta)
+    
+    # 4. Calcular a razão de aceitação
+    # r = f(proposto) / f(atual)
+    log_r <- log_alvo(proposta) - log_alvo(estado_atual)
+    r <- exp(log_r)
+    
+    # 5. Aceitar o ponto proposto com probabilidade min(1, r)
+    if (runif(1) < min(1, r)) {
+      # Se rejeitado, o próximo ponto da cadeia é o mesmo que o ponto atual
+      estado_atual <- proposta
+      n_aceito <- n_aceito + 1
+    }
+    # Caso contrário, permanece no estado atual (estado_atual inalterado)
+    
+    # 6. Armazenar o ponto na cadeia
+    cadeia_mk[i, ] <- estado_atual
+  }
+  
+  # 7. Calcular taxa de aceitação
+  tx_aceita <- n_aceito / (n_iter - 1)
+  
+  # Retornar resultados
+  return(list(
+    cadeia_mk = cadeia_mk,
+    tx_aceita = tx_aceita,
+    n_aceito = n_aceito,
+    n_iter = n_iter
+  ))
 }
 
 # Execute o amostrador
-# cadeia_mcmc <- metropolis_bvn(...)
+set.seed(123)
+# Teste com diferentes valores de sigma_prop para ver o efeito na taxa de aceitação
+resultado_mcmc <- metropolis_bvn(n_iter = 10000, sigma_prop = 1.0)
+cadeia_mcmc <- resultado_mcmc$cadeia_mk
+
+
 ```
 
 ### 3.2 Análise da Saída
 
 ```{r prob3b_analysis}
 # Descarte o burn-in
-# burn_in <- 2000
-# cadeia_final <- ...
+burn_in <- 2000
+cadeia_burnin <- cadeia_mcmc[-burn_in,]
 
 # Crie os trace plots para cada uma das duas variáveis
-# ... seu código ggplot2 aqui ...
+
+df_cadeia <- as.data.frame(cadeia_mcmc)
+colnames(df_cadeia) <- c("X1", "X2")
+df_cadeia$iter <- 1:nrow(df_cadeia)
+
+
+library(patchwork)
+
+# Trace plots lado a lado usando patchwork
+p1 <- ggplot(df_cadeia, aes(x = iter, y = X1)) +
+  geom_line(color = "blue") +
+  labs(title = "Trace plot para X1", x = "Iteração", y = "X1") +
+  theme_minimal()
+
+p2 <- ggplot(df_cadeia, aes(x = iter, y = X2)) +
+  geom_line(color = "darkgreen") +
+  labs(title = "Trace plot para X2", x = "Iteração", y = "X2") +
+  theme_minimal()
+
+# Exibir os dois gráficos em um grid
+p1 / p2
+
 
 # Crie o scatter plot das amostras geradas
-# ... seu código ggplot2 aqui ...
+# Scatter plot das amostras após o burn-in
+df_cadeia_burnin <- as.data.frame(cadeia_burnin)
+colnames(df_cadeia_burnin) <- c("X1", "X2")
 
+ggplot(df_cadeia_burnin, aes(x = X1, y = X2)) +
+  geom_point(alpha = 0.3, color = "purple", size = 1) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", alpha = 0.2, color = NA) +
+  labs(title = "Scatter plot das amostras MCMC (após burn-in)",
+       x = "X1", y = "X2") +
+  theme_minimal()
 # Verificação Visual: Sobreponha as linhas de contorno teóricas
-# ...
+# Sobrepondo as linhas de contorno teóricas da distribuição alvo
+ggplot(df_cadeia_burnin, aes(x = X1, y = X2)) +
+  geom_point(alpha = 0.3, color = "purple", size = 1) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", alpha = 0.2, color = NA) +
+  stat_function(
+    fun = function(x) {
+      # Para contorno, precisamos de y dado x
+      # Aqui, apenas para visualização, desenhamos várias curvas de nível
+      # Usamos expand.grid para gerar grid de pontos
+      NULL
+    }
+  ) +
+  stat_density_2d(
+    data = as.data.frame(mvtnorm::rmvnorm(1e4, mean = mu, sigma = Sigma)),
+    aes(x = X1, y = X2),
+    color = "red", size = 1, bins = 6, geom = "density_2d"
+  ) +
+  labs(title = "Scatter plot das amostras MCMC (após burn-in) com contornos teóricos",
+       x = "X1", y = "X2") +
+  theme_minimal()
+
+  # Gráfico de autocorrelação para X1 e X2 após o burn-in
+  acf_x1 <- acf(df_cadeia_burnin$X1, plot = FALSE)
+  acf_x2 <- acf(df_cadeia_burnin$X2, plot = FALSE)
+
+  par(mfrow = c(2, 1))
+  plot(acf_x1, main = "Autocorrelação de X1 (após burn-in)")
+  plot(acf_x2, main = "Autocorrelação de X2 (após burn-in)")
+  par(mfrow = c(1, 1))
+
+ #sendo conservador e retirando uma amostra sistemática de 100 em 100
+cadeia_final <- cadeia_burnin[seq(1, nrow(cadeia_burnin), by = 100), ]
+
+
 
 # Reporte a taxa de aceitação
-# ...
+
+
+cat("Taxa de aceitação:", round(resultado_mcmc$tx_aceita, 4), "\n")
+cat("Número de amostras aceitas:", resultado_mcmc$n_aceito, "\n")
+
+
 ```
 
 **Análise da Tarefa 3.2:**
