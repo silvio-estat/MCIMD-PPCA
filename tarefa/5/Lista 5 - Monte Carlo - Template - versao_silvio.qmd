@@ -21,6 +21,7 @@ Este arquivo serve como seu template de resposta. Preencha as seções marcadas 
 # Carregue todos os pacotes que você usará aqui
 library(tidyverse)
 library(mvtnorm) # Pode ser útil para o Problema 3
+#library(httpgd)
 ```
 
 ---
@@ -85,7 +86,6 @@ cat("A estimativa para a variância empírica (antitética) é: ", round(varianc
 
 ### 1.3 Análise e Comparação
 
-*SUA ANÁLISE AQUI:* Apresente uma tabela comparando os resultados (valor estimado e variância) dos dois métodos. Em que percentual a técnica de variáveis antitéticas reduziu a variância da estimativa em comparação com o método de Monte Carlo padrão?
 
 | Método                        | Estimativa da Integral | Variância Empírica |
 |-------------------------------|------------------------|--------------------|
@@ -93,6 +93,8 @@ cat("A estimativa para a variância empírica (antitética) é: ", round(varianc
 | Método da estimativa Antitética   |0,52|0,001|
 
 **Redução percentual da variância:** A redução foi de, aproximadamente, 98%
+
+Como podemos observar, o método da Estimatíva Antiética reduziu a variância em aproximadamente 98% sendo, assim, superior ao método de Monte Carlo.
 
 ---
 
@@ -287,12 +289,29 @@ set.seed(123)
 resultado_mcmc <- metropolis_bvn(n_iter = 10000, sigma_prop = 1.0)
 cadeia_mcmc <- resultado_mcmc$cadeia_mk
 
+```
+
+```{r prob3a_metropolis_hastings2}
+
+result_mcmc_sigma05 <- metropolis_bvn(n_iter = 100000, sigma_prop = 0.5)
+
+result_mcmc_sigma2 <- metropolis_bvn(n_iter = 10000, sigma_prop = 2)
+
 
 ```
+
+
 
 ### 3.2 Análise da Saída
 
 ```{r prob3b_analysis}
+
+# Reporte a taxa de aceitação
+cat("Taxa de aceitação:", round(resultado_mcmc$tx_aceita, 4), "\n")
+cat("Número de amostras aceitas:", resultado_mcmc$n_aceito, "\n")
+cat("Número total de iterações:", resultado_mcmc$n_iter, "\n")
+
+
 # Descarte o burn-in
 burn_in <- 2000
 cadeia_burnin <- cadeia_mcmc[-burn_in,]
@@ -326,6 +345,12 @@ p1 / p2
 df_cadeia_burnin <- as.data.frame(cadeia_burnin)
 colnames(df_cadeia_burnin) <- c("X1", "X2")
 
+
+amostras_teoricas <- mvtnorm::rmvnorm(1e4, mean = mu, sigma = Sigma)
+df_teoricas <- as.data.frame(amostras_teoricas)
+colnames(df_teoricas) <- c("X1", "X2")
+
+
 ggplot(df_cadeia_burnin, aes(x = X1, y = X2)) +
   geom_point(alpha = 0.3, color = "purple", size = 1) +
   stat_density_2d(aes(fill = ..level..), geom = "polygon", alpha = 0.2, color = NA) +
@@ -337,20 +362,13 @@ ggplot(df_cadeia_burnin, aes(x = X1, y = X2)) +
 ggplot(df_cadeia_burnin, aes(x = X1, y = X2)) +
   geom_point(alpha = 0.3, color = "purple", size = 1) +
   stat_density_2d(aes(fill = ..level..), geom = "polygon", alpha = 0.2, color = NA) +
-  stat_function(
-    fun = function(x) {
-      # Para contorno, precisamos de y dado x
-      # Aqui, apenas para visualização, desenhamos várias curvas de nível
-      # Usamos expand.grid para gerar grid de pontos
-      NULL
-    }
-  ) +
   stat_density_2d(
-    data = as.data.frame(mvtnorm::rmvnorm(1e4, mean = mu, sigma = Sigma)),
+    data = df_teoricas,
     aes(x = X1, y = X2),
     color = "red", size = 1, bins = 6, geom = "density_2d"
   ) +
   labs(title = "Scatter plot das amostras MCMC (após burn-in) com contornos teóricos",
+       subtitle = "Roxo: Amostras MCMC | Vermelho: Contornos teóricos",
        x = "X1", y = "X2") +
   theme_minimal()
 
@@ -363,20 +381,217 @@ ggplot(df_cadeia_burnin, aes(x = X1, y = X2)) +
   plot(acf_x2, main = "Autocorrelação de X2 (após burn-in)")
   par(mfrow = c(1, 1))
 
- #sendo conservador e retirando uma amostra sistemática de 100 em 100
-cadeia_final <- cadeia_burnin[seq(1, nrow(cadeia_burnin), by = 100), ]
+  print("Podemos perceber que existe uma grande autocorrelação em ambas as variáveis por conta da simulação via cadeia de markov. A ideia é realizar uma amostragem de valores")
+  print("No presente caso, decidiu-se por amostrar a cada 50 valores")
+
+# Amostragem sistemática opcional para reduzir autocorrelação
+  cadeia_final <- cadeia_burnin[seq(1, nrow(cadeia_burnin), by = 50), ]
+  cadeia_final<-as.data.frame(cadeia_final)
+  colnames(cadeia_final) <- c("X1", "X2")
+  cadeia_final$iter <- 1:nrow(cadeia_final)
+  
+
+p11 <- ggplot(cadeia_final, aes(x = iter, y = X1)) +
+  geom_line(color = "blue") +
+  labs(title = "Trace plot para X1 (amostrado)", x = "Iteração", y = "X1") +
+  theme_minimal()
+
+p21 <- ggplot(cadeia_final, aes(x = iter, y = X2)) +
+  geom_line(color = "darkgreen") +
+  labs(title = "Trace plot para X2 (amostrado)", x = "Iteração", y = "X2") +
+  theme_minimal()
+
+# Exibir os dois gráficos em um grid
+p11 / p21
+
+amostras_teoricas2 <- mvtnorm::rmvnorm(length(cadeia_final), mean = mu, sigma = Sigma)
+df_teoricas2 <- as.data.frame(amostras_teoricas2)
+colnames(df_teoricas2) <- c("X1", "X2")
+
+ggplot(cadeia_final, aes(x = X1, y = X2)) +
+  geom_point(alpha = 0.3, color = "purple", size = 1) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", alpha = 0.2, color = NA) +
+  labs(title = "Scatter plot das amostras MCMC (após burn-in)",
+       x = "X1", y = "X2") +
+  theme_minimal()
+
+```
+
+Realizando a análise para um $\sigma = 0.5$.
 
 
+```{r prob3b_analysis2}
 
-# Reporte a taxa de aceitação
+# CRIANDO UMA FUNÇÃO QUE GERA OS RESULTADOS PASSADOS MAS ESCOLHENDO VARIANCIAS DIFERENTES
+
+# Função para analisar e plotar resultados de uma simulação Metropolis-Hastings,
+# incluindo gráficos de nível e análise após amostragem sistemática (thinning)
+analisar_mcmc_com_thin <- function(resultado_mcmc, burn_in = 2000, thin = 1, mu = c(0,0), Sigma = matrix(c(1,0.9,0.9,1), 2),amostra=50) {
+
+  nome_do_dataframe <- deparse(substitute(resultado_mcmc))
+  
 
 
-cat("Taxa de aceitação:", round(resultado_mcmc$tx_aceita, 4), "\n")
-cat("Número de amostras aceitas:", resultado_mcmc$n_aceito, "\n")
+  require(ggplot2)
+  require(patchwork)
+  require(mvtnorm)
+  
+  cadeia <- resultado_mcmc$cadeia_mk
+  n_iter <- resultado_mcmc$n_iter
+  tx_aceita <- resultado_mcmc$tx_aceita
+  n_aceito <- resultado_mcmc$n_aceito
+  
+  cat("Taxa de aceitação:", round(tx_aceita, 4), "\n")
+  cat("Número de amostras aceitas:", n_aceito, "\n")
+  cat("Número total de iterações:", n_iter, "\n")
+  
+  # Descarte do burn-in e thinning
+  cadeia_burnin <- cadeia[-seq_len(burn_in), , drop = FALSE]
+  if (thin > 1) {
+    cadeia_burnin <- cadeia_burnin[seq(1, nrow(cadeia_burnin), by = thin), , drop = FALSE]
+  }
+  
+  df_cadeia <- as.data.frame(cadeia)
+  colnames(df_cadeia) <- c("X1", "X2")
+  df_cadeia$iter <- 1:nrow(df_cadeia)
+  
+  # Trace plots
+  p1 <- ggplot(df_cadeia, aes(x = iter, y = X1)) +
+    geom_line(color = "blue") +
+    labs(title = "Trace plot para X1", 
+    subtitle=paste("Dataframe utilizado:",nome_do_dataframe),x = "Iteração", y = "X1") +
+    theme_minimal()
+  
+  p2 <- ggplot(df_cadeia, aes(x = iter, y = X2)) +
+    geom_line(color = "darkgreen") +
+    labs(title = "Trace plot para X2",
+    subtitle=paste("Dataframe utilizado:",nome_do_dataframe), x = "Iteração", y = "X2") +
+    theme_minimal()
+  
+  print(p1 / p2)
+  
+  # Scatter plot das amostras após burn-in
+  df_cadeia_burnin <- as.data.frame(cadeia_burnin)
+  colnames(df_cadeia_burnin) <- c("X1", "X2")
+  
+  amostras_teoricas <- mvtnorm::rmvnorm(nrow(df_cadeia_burnin), mean = mu, sigma = Sigma)
+  df_teoricas <- as.data.frame(amostras_teoricas)
+  colnames(df_teoricas) <- c("X1", "X2")
+  
+  # Scatter plot com contornos teóricos
+  p_scatter <- ggplot(df_cadeia_burnin, aes(x = X1, y = X2)) +
+    geom_point(alpha = 0.3, color = "purple", size = 1) +
+    stat_density_2d(aes(fill = ..level..), geom = "polygon", alpha = 0.2, color = NA) +
+    stat_density_2d(
+      data = df_teoricas,
+      aes(x = X1, y = X2),
+      color = "red", size = 1, bins = 6, geom = "density_2d"
+    ) +
+    labs(title = "Scatter plot das amostras MCMC (após burn-in) com contornos teóricos",
+         subtitle = paste("Dataframe utilizado:",nome_do_dataframe),
+         x = "X1", y = "X2") +
+    theme_minimal()
+  print(p_scatter)
+  
+  
+  # Autocorrelação
+  acf_x1 <- acf(df_cadeia_burnin$X1, plot = FALSE)
+  acf_x2 <- acf(df_cadeia_burnin$X2, plot = FALSE)
+  par(mfrow = c(2, 1))
+  plot(acf_x1, main = paste("Autocorrelação de X1 (após burn-in) | Dataframe:",nome_do_dataframe))
+  plot(acf_x2, main = paste("Autocorrelação de X2 (após burn-in) | Dataframe:",nome_do_dataframe))
+  par(mfrow = c(1, 1))
+  
+  # Amostragem sistemática para reduzir autocorrelação (thinning fixo de 50)
+  cadeia_thin <- cadeia_burnin[seq(1, nrow(cadeia_burnin), by = amostra), , drop = FALSE]
+  df_cadeia_thin <- as.data.frame(cadeia_thin)
+  colnames(df_cadeia_thin) <- c("X1", "X2")
+  df_cadeia_thin$iter <- 1:nrow(df_cadeia_thin)
+  
+  # Trace plots após thinning
+  p1_thin <- ggplot(df_cadeia_thin, aes(x = iter, y = X1)) +
+    geom_line(color = "blue") +
+    labs(title = paste("Trace plot para X1 (amostrado a cada ",amostra,")"),
+    subtitle = paste("Dataframe utilizado:",nome_do_dataframe), x = "Iteração", y = "X1") +
+    theme_minimal()
+  
+  p2_thin <- ggplot(df_cadeia_thin, aes(x = iter, y = X2)) +
+    geom_line(color = "darkgreen") +
+    labs(title = paste("Trace plot para X2 (amostrado a cada ",amostra,")"), 
+    subtitle = paste("Dataframe utilizado:",nome_do_dataframe),x = "Iteração", y = "X2") +
+    theme_minimal()
+  
+  print(p1_thin / p2_thin)
+  
+  # Scatter plot e gráfico de nível após thinning
+  amostras_teoricas2 <- mvtnorm::rmvnorm(nrow(df_cadeia_thin), mean = mu, sigma = Sigma)
+  df_teoricas2 <- as.data.frame(amostras_teoricas2)
+  colnames(df_teoricas2) <- c("X1", "X2")
+  
+  p_scatter_thin <- ggplot(df_cadeia_thin, aes(x = X1, y = X2)) +
+    geom_point(alpha = 0.3, color = "purple", size = 1) +
+    stat_density_2d(aes(fill = ..level..), geom = "polygon", alpha = 0.2, color = NA) +
+    stat_density_2d(
+      data = df_teoricas2,
+      aes(x = X1, y = X2),
+      color = "red", size = 1, bins = 6, geom = "density_2d"
+    ) +
+    labs(title = "Scatter plot das amostras MCMC (após thinning) com contornos teóricos",
+         subtitle = paste("Avaliação da base de dados:",nome_do_dataframe),
+         x = "X1", y = "X2") +
+    theme_minimal()
+  print(p_scatter_thin)
+  
+  
+  invisible(list(
+    cadeia_burnin = cadeia_burnin,
+    cadeia_thin = cadeia_thin,
+    taxa_aceitacao = tx_aceita,
+    n_aceito = n_aceito,
+    n_iter = n_iter
+  ))
+}
 
+# Exemplo de uso:
+ analisar_mcmc_com_thin(result_mcmc_sigma05,amostra=200)
+```
+
+Realizando a mesma análise para um $\sigma = 2$.
+
+```{r prob3b_analysis3}
+
+ analisar_mcmc_com_thin(result_mcmc_sigma2)
 
 ```
 
 **Análise da Tarefa 3.2:**
 
-*INCLUA SEUS GRÁFICOS AQUI.* Os trace plots indicam que a cadeia convergiu? O scatter plot e as linhas de contorno mostram que seu amostrador explorou a distribuição alvo corretamente? Comente sobre o efeito de diferentes valores para a variância da proposta (`sigma_prop`) na taxa de aceitação e na eficiência do amostrador.
+De acordo com a tabela abaixo:
+
+| Sigma                        | Taxa de aceitação |
+|-------------------------------|------------------------|
+| $\sigma=1$            |0,31|
+| $\sigma=0.5$   |0,54|
+| $\sigma=2$   |0,13|
+
+
+Podemos observar que a simulação considerando um $\sigma=1$ aparentou possuir uma taxa de aceitação melhor que os demais. Uma taxa muito alta (caso do $\sigma=0.5$) significa que os passos da cadeia estão pequenos fazendo que a exploração fique muito lenta aumentando a autocorrelação (por isso que tive de aumentar a quantidade de passos na amostragem = 200). Por outro lado, uma taxa muito baixa, igual ao $\sigma=2$, mostra que está havendo passos muito altos na cadeia mostrando uma exploração ineficiente.
+
+Observando os **trace plots** e **scatter plots** dos três valores de sigma, podemos concluir que:
+
+1. **$\sigma = 1$** apresentou a **melhor convergência**:
+   - Trace plots mostram boa mistura e exploração do espaço paramétrico
+   - Scatter plot revela sobreposição adequada com os contornos teóricos da distribuição alvo
+   - Autocorrelação moderada, permitindo boa exploração sem desperdício computacional
+
+2. **$\sigma = 0.5$** mostrou **convergência mais lenta**:
+   - Trace plots evidenciam movimento muito lento
+   - Alta autocorrelação requer thinning maior (200 vs 50)
+   - Exploração ineficiente do espaço, com a cadeia "presa" em regiões locais
+
+3. **$\sigma = 2$** demonstrou **convergência irregular**:
+   - Trace plots apresentam saltos muito grandes e rejeições frequentes
+   - Scatter plot mostra pontos mais dispersos e menos aderência aos contornos teóricos
+   - Exploração ineficiente por causa dos passos excessivamente grandes
+
+**Conclusão Final:** O **$\sigma = 1$** é claramente superior, proporcionando o melhor equilíbrio entre eficiência de exploração, taxa de aceitação adequada e convergência rápida para a distribuição alvo Normal Bivariada com $\rho = 0.9$. 
