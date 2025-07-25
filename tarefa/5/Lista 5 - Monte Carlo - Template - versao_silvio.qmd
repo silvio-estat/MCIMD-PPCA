@@ -251,7 +251,7 @@ metropolis_bvn <- function(n_iter, sigma_prop) {
     
     # 3. Propor um novo ponto a partir da distribuição de proposta
     # Proposta Normal Bivariada centrada no ponto atual
-    proposta <- mvtnorm::rmvnorm(1, mean = estado_atual, sigma = Sigma_prop)
+    proposta <- rnorm(2, mean = estado_atual, sd = sigma_prop)
     proposta <- as.vector(proposta)
     
     # 4. Calcular a razão de aceitação
