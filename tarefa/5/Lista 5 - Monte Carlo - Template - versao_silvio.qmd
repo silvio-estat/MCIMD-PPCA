@@ -52,7 +52,7 @@ set.seed(123)
 x <- runif(m)
 fx <- f(x)
 mc_estimate <- mean(fx)
-mc_var <- var(fx)
+mc_var <- var(fx) / m
 
 # Reporte a estimativa e a variância empírica
 
@@ -76,7 +76,7 @@ u <- runif(m2)
 # Gere as amostras e calcule a estimativa antitética
 amostra_antietica <- (f(u) + f(1 - u)) / 2
 estimativa_antietica <- mean(amostra_antietica)
-variancia_antietica <- var(amostra_antietica) 
+variancia_antietica <- var(amostra_antietica) /m2
 
 # Reporte a estimativa e a variância empírica
 cat("A estimativa da integral (antitética) é: ", round(estimativa_antietica, 4), "\n")
