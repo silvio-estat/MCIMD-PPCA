@@ -53,12 +53,14 @@ x <- runif(m)
 fx <- f(x)
 mc_estimate <- mean(fx)
 mc_var <- var(fx) / m
+mc_se <- sqrt(mc_var)
 
 # Reporte a estimativa e a variância empírica
 
 
-cat("A estimativa da integral é: ", round(mc_estimate, 2), "\n")
-cat("A estimativa para a variância empírica é: $", round(mc_var , 2), "\n")
+cat("A estimativa da integral é: ", round(mc_estimate, 6), "\n")
+cat("A estimativa para a variância empírica é: ", round(mc_var, 8), "\n")
+cat("A estimativa para o erro padrão é: $", round(mc_se , 6), "\n")
 
 # ...
 ```
@@ -77,24 +79,26 @@ u <- runif(m2)
 amostra_antietica <- (f(u) + f(1 - u)) / 2
 estimativa_antietica <- mean(amostra_antietica)
 variancia_antietica <- var(amostra_antietica) /m2
+antietica_se <- sqrt(variancia_antietica)
 
 # Reporte a estimativa e a variância empírica
 cat("A estimativa da integral (antitética) é: ", round(estimativa_antietica, 4), "\n")
-cat("A estimativa para a variância empírica (antitética) é: ", round(variancia_antietica, 6), "\n")
+cat("A estimativa para a variância empírica (antitética) é: ", round(variancia_antietica, 8), "\n")
+cat("A estimativa para o erro padrão (antitética) é: $", round(antietica_se , 6), "\n")
 
 ```
 
 ### 1.3 Análise e Comparação
 
 
-| Método                        | Estimativa da Integral | Variância Empírica |
+| Método                        | Estimativa da Integral | Erro Padrão Empírico |
 |-------------------------------|------------------------|--------------------|
-| Monte Carlo Padrão            |0,53|0,06|
-| Método da estimativa Antitética   |0,52|0,001|
+| Monte Carlo Padrão            |0,53|0,002438|
+| Método da estimativa Antitética   |0,52|0,000468|
 
-**Redução percentual da variância:** A redução foi de, aproximadamente, 98%
+**Redução percentual do erro padrão:** A redução foi de, aproximadamente, 80% (em relação à variância, o percentual seria de aproximadamente 97%)
 
-Como podemos observar, o método da Estimatíva Antiética reduziu a variância em aproximadamente 98% sendo, assim, superior ao método de Monte Carlo.
+Como podemos observar, o método da Estimatíva Antiética reduziu o erro padrão em aproximadamente 80% sendo, assim, superior ao método de Monte Carlo.
 
 ---
 
@@ -424,6 +428,7 @@ Realizando a análise para um $\sigma = 0.5$.
 
 # CRIANDO UMA FUNÇÃO QUE GERA OS RESULTADOS PASSADOS MAS ESCOLHENDO VARIANCIAS DIFERENTES
 
+library(patchwork)
 # Função para analisar e plotar resultados de uma simulação Metropolis-Hastings,
 # incluindo gráficos de nível e análise após amostragem sistemática (thinning)
 analisar_mcmc_com_thin <- function(resultado_mcmc, burn_in = 2000, thin = 1, mu = c(0,0), Sigma = matrix(c(1,0.9,0.9,1), 2),amostra=50) {
