@@ -1,0 +1,496 @@
+---
+title: "PPCA0026 - Tarefa 5: Métodos de Monte Carlo e MCMC"
+subtitle: "Baseado em 'Statistical Computing with R' de Maria Rizzo"
+author: "Ítalo Guimarães / Sílvio Júnior"
+date: "2025-08-08"
+format:
+  html:
+    embed-resources: true
+    toc: true
+    toc-depth: 3
+    theme: cosmo
+    code-fold: show
+    code-tools: true
+---
+
+## Introdução
+
+Este arquivo serve como seu template de resposta. Preencha as seções marcadas com seu código R, as saídas geradas, e suas análises textuais.
+
+```{r setup, include=FALSE}
+# Carregue todos os pacotes que você usará aqui
+library(tidyverse)
+library(mvtnorm) # Pode ser útil para o Problema 3
+library(gridExtra) # Para arranjar múltiplos gráficos
+library(patchwork) # Para melhor organização dos gráficos
+
+# Configurações globais
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 6
+)
+```
+
+---
+
+## Problema 1: Integração por Monte Carlo e Variáveis Antitéticas (Capítulo 7)
+
+Neste problema, vamos estimar o valor de uma integral definida e ver como uma técnica de amostragem mais inteligente pode melhorar a precisão da nossa estimativa.
+
+**Tarefa (baseada no Exercício 7.5 de Rizzo):**
+
+O nosso objetivo é estimar o valor de $I = \int_0^1 \frac{e^{-x}}{1+x^2} dx$.
+
+### 1.1 Estimação com Monte Carlo Padrão
+
+```{r prob1a_standard_mc}
+# Defina a função a ser integrada
+f <- function(x) {
+  exp(-x) / (1 + x^2)
+}
+
+m <- 10000 # Número de amostras
+set.seed(123)
+
+# Gere as amostras e calcule a estimativa
+x <- runif(m)
+fx <- f(x)
+mc_estimate <- mean(fx)
+mc_var <- var(fx) / m
+mc_se <- sqrt(mc_var)
+
+# Reporte a estimativa e a variância empírica
+cat("Monte Carlo Padrão:\n")
+cat("Estimativa da integral:", round(mc_estimate, 6), "\n")
+cat("Variância empírica:", round(mc_var, 8), "\n")
+cat("Erro padrão:", round(mc_se, 6), "\n")
+```
+
+### 1.2 Estimação com Variáveis Antitéticas
+
+```{r prob1b_antithetic_mc}
+# Use m/2 amostras para criar m pontos de avaliação
+set.seed(123)
+
+m2 <- m / 2
+u <- runif(m2)
+
+# Gere as amostras e calcule a estimativa antitética
+amostra_antitetica <- (f(u) + f(1 - u)) / 2
+estimativa_antitetica <- mean(amostra_antitetica)
+variancia_antitetica <- var(amostra_antitetica) / m2
+antitetica_se <- sqrt(variancia_antitetica)
+
+# Reporte a estimativa e a variância empírica
+cat("Variáveis Antitéticas:\n")
+cat("Estimativa da integral:", round(estimativa_antitetica, 6), "\n")
+cat("Variância empírica:", round(variancia_antitetica, 8), "\n")
+cat("Erro padrão:", round(antitetica_se, 6), "\n")
+```
+
+### 1.3 Análise e Comparação
+
+```{r comparison_table}
+# Criar tabela de comparação
+results <- data.frame(
+  Método = c("Monte Carlo Padrão", "Variáveis Antitéticas"),
+  Estimativa = c(mc_estimate, estimativa_antitetica),
+  `Erro Padrão` = c(mc_se, antitetica_se),
+  Variância = c(mc_var, variancia_antitetica)
+)
+
+# Calcular redução percentual na variância e erro padrão
+reducao_variancia <- (mc_var - variancia_antitetica) / mc_var * 100
+reducao_erro_padrao <- (mc_se - antitetica_se) / mc_se * 100
+
+print(results)
+cat("\nRedução na variância com variáveis antitéticas:", round(reducao_variancia, 2), "%\n")
+cat("Redução no erro padrão com variáveis antitéticas:", round(reducao_erro_padrao, 2), "%\n")
+
+# Valor teórico para comparação (calculado numericamente)
+valor_teorico <- integrate(f, 0, 1)$value
+cat("Valor teórico da integral:", round(valor_teorico, 6), "\n")
+```
+
+**Análise:**
+
+A técnica de variáveis antitéticas demonstrou uma melhoria substancial na eficiência da estimação Monte Carlo. A redução de aproximadamente **80% no erro padrão** (e ~97% na variância) ocorre devido à correlação negativa induzida entre as variáveis U e 1-U. 
+
+Quando a função integranda f(x) = e^(-x)/(1+x²) é monótona decrescente no intervalo [0,1], os valores f(U) e f(1-U) tendem a se compensar mutuamente, reduzindo significativamente a variabilidade da estimativa. Esta propriedade de compensação das variáveis antitéticas é maximizada para funções monótonas, tornando-se uma ferramenta valiosa para melhorar a eficiência computacional em simulações Monte Carlo.
+
+Como podemos observar na tabela comparativa, o método da estimativa antitética é claramente superior ao Monte Carlo padrão, demonstrando não apenas maior precisão (menor variância) mas também melhor acurácia em relação ao valor teórico.
+
+---
+
+## Problema 2: Amostragem por Rejeição (Rejection Sampling) (Capítulo 6)
+
+O objetivo é gerar amostras de uma distribuição `Beta(2, 2)` usando o algoritmo de amostragem por rejeição.
+
+### 2.1 Encontrando a Constante `c`
+
+```{r prob2a_find_c}
+# A distribuição alvo é f(x) = dbeta(x, 2, 2)
+# A distribuição envelope é g(x) = dunif(x, 0, 1) = 1
+# Encontre o valor máximo da razão f(x)/g(x) no intervalo [0, 1].
+
+# Definindo as distribuições
+f <- function(x) dbeta(x, 2, 2)  # Para Beta(2,2), f(x) = 6x(1-x)
+g <- function(x) dunif(x, 0, 1)  # g(x) = 1
+
+# Método analítico: o máximo ocorre em x = 0.5 (derivada igual a zero)
+# f'(x) = 6(1-2x) = 0 => x = 0.5
+x_max <- 0.5
+f_max <- dbeta(x_max, 2, 2)
+c_value <- f_max / 1  # g(x) = 1
+
+# Verificação numérica
+grid <- seq(0, 1, length.out = 10001)
+divisao <- f(grid) / g(grid)
+c_numerical <- max(divisao)
+
+cat("Método analítico - C =", round(c_value, 4), "\n")
+cat("Verificação numérica - C =", round(c_numerical, 4), "\n")
+cat("Densidade Beta(2,2) em x = 0.5:", round(f_max, 4), "\n")
+
+# Verificação gráfica
+x_seq <- seq(0, 1, length.out = 1000)
+ratio <- dbeta(x_seq, 2, 2) / 1
+
+ggplot(data.frame(x = x_seq, ratio = ratio), aes(x = x, y = ratio)) +
+  geom_line(color = "blue", linewidth = 1) +
+  geom_hline(yintercept = c_value, color = "red", linetype = "dashed", linewidth = 1) +
+  geom_vline(xintercept = x_max, color = "green", linetype = "dashed", linewidth = 1) +
+  labs(title = "Razão f(x)/g(x) para Beta(2,2)",
+       x = "x", y = "f(x)/g(x)") +
+  annotate("text", x = 0.7, y = 1.4, label = paste("c =", round(c_value, 2)), color = "red") +
+  theme_minimal()
+```
+
+**Análise da Tarefa 2.1:**
+
+O valor da constante **c = 1.5** foi determinado analiticamente através da maximização da razão f(x)/g(x). Para a distribuição Beta(2,2), a densidade é f(x) = 6x(1-x) para x ∈ [0,1], e usando a distribuição uniforme como envelope (g(x) = 1), a razão torna-se 6x(1-x).
+
+A derivação f'(x) = 6(1-2x) = 0 confirma que o máximo ocorre em x = 0.5, onde f(0.5) = 1.5. Esta escolha de constante é ótima pois minimiza o número esperado de rejeições, resultando na taxa de aceitação teórica máxima de 1/c = 1/1.5 ≈ 0.667.
+
+### 2.2 Implementando o Amostrador por Rejeição
+
+```{r prob2b_rejection_sampler}
+# Escreva uma função que implementa o algoritmo de amostragem por rejeição.
+# A função deve aceitar n (o número de amostras a gerar) e c como argumentos.
+rejection_sampler_beta <- function(n, c) {
+  # Definindo as distribuições
+  f <- function(x) dbeta(x, 2, 2)
+  g <- function(x) dunif(x, 0, 1) 
+
+  amostras_aceitas <- numeric(n)
+  total_propostas <- 0
+  aceitas <- 0
+  
+  # Loop até obter n amostras aceitas
+  while(aceitas < n) {
+    # Gerar proposta da distribuição envelope (uniforme)
+    y <- runif(1, 0, 1) 
+    u <- runif(1, 0, 1)
+    
+    # Teste de aceitação: aceitar se u < f(y)/(c*g(y))
+    if (u < f(y) / (c * g(y))) {
+      aceitas <- aceitas + 1
+      amostras_aceitas[aceitas] <- y
+    }
+    
+    total_propostas <- total_propostas + 1
+  }
+  
+  # Calcular taxa de aceitação
+  taxa_aceitacao <- aceitas / total_propostas
+  
+  # Retornar lista com amostras e informações do processo
+  return(list(
+    amostras = amostras_aceitas,
+    taxa_aceitacao = taxa_aceitacao,
+    total_propostas = total_propostas
+  ))
+}
+
+# Gere 2000 amostras usando a função
+set.seed(123)
+resultado_beta <- rejection_sampler_beta(2000, c_value)
+amostras_beta <- resultado_beta$amostras
+
+cat("Taxa de aceitação observada:", round(resultado_beta$taxa_aceitacao, 4), "\n")
+cat("Taxa de aceitação teórica:", round(1/c_value, 4), "\n")
+cat("Total de propostas:", resultado_beta$total_propostas, "\n")
+```
+
+### 2.3 Verificação dos Resultados
+
+```{r prob2c_verification}
+# Criar histograma das amostras geradas com densidade teórica sobreposta
+df_beta <- data.frame(amostra = amostras_beta)
+
+# Criar o gráfico
+p_histogram <- ggplot(df_beta, aes(x = amostra)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30, 
+                 fill = "lightblue", color = "white", alpha = 0.7) +
+  stat_function(fun = function(x) dbeta(x, 2, 2), 
+                color = "red", linewidth = 1.5) +
+  labs(title = "Amostragem por Rejeição: Beta(2,2)",
+       subtitle = paste("Taxa de aceitação:", round(resultado_beta$taxa_aceitacao, 3)),
+       x = "x", y = "Densidade") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  annotate("text", x = 0.8, y = 2.2, 
+           label = "Densidade Teórica Beta(2,2)", 
+           color = "red", size = 4)
+
+print(p_histogram)
+
+# Teste Kolmogorov-Smirnov para verificar a distribuição
+ks_test <- ks.test(amostras_beta, pbeta, 2, 2)
+cat("Teste KS p-valor:", round(ks_test$p.value, 4), "\n")
+
+# Estatísticas descritivas
+cat("Estatísticas das amostras:\n")
+cat("Média empírica:", round(mean(amostras_beta), 4), "(teórica: 0.5)\n")
+cat("Variância empírica:", round(var(amostras_beta), 4), "(teórica:", round(2*2/((2+2)^2*(2+2+1)), 4), ")\n")
+```
+
+**Análise da Tarefa 2.3:**
+
+**Análise do Desempenho:**
+A taxa de aceitação observada (~0.66) está muito próxima da taxa teórica máxima (0.667), confirmando a implementação correta do algoritmo. Uma taxa de aceitação superior a 65% é considerada muito eficiente para amostragem por rejeição, validando nossa escolha da distribuição envelope uniforme.
+
+**Validação Estatística:**
+O histograma das amostras geradas corresponde excelentemente à densidade teórica da distribuição Beta(2,2), como evidenciado pela sobreposição da curva vermelha. O teste de Kolmogorov-Smirnov confirma estatisticamente que as amostras seguem a distribuição Beta(2,2), e as estatísticas descritivas (média e variância) estão muito próximas dos valores teóricos esperados.
+
+A eficiência do método é evidenciada pela alta taxa de aceitação e pela correspondência entre as distribuições empírica e teórica, validando tanto a implementação quanto a escolha dos parâmetros do algoritmo.
+
+---
+
+## Problema 3: O Algoritmo de Metropolis-Hastings (Capítulo 9)
+
+O objetivo é gerar amostras de uma distribuição Normal Bivariada com alta correlação ($\rho=0.9$) usando um amostrador de Metropolis-Hastings de passeio aleatório.
+
+### 3.1 Implementando o Amostrador
+
+```{r prob3a_metropolis_hastings}
+# Definir a densidade alvo
+mu <- c(0, 0)
+Sigma <- matrix(c(1, 0.9, 0.9, 1), nrow = 2)
+
+log_alvo <- function(x) {
+  mvtnorm::dmvnorm(x, mean = mu, sigma = Sigma, log = TRUE)
+}
+
+# Implementar a função do amostrador de Metropolis-Hastings
+metropolis_bvn <- function(n_iter, sigma_prop) {
+  # Inicializar a cadeia
+  cadeia_mk <- matrix(0, nrow = n_iter, ncol = 2)
+  estado_atual <- c(0, 0)  # Ponto inicial (0, 0)
+  cadeia_mk[1, ] <- estado_atual
+  
+  # Contador de aceitações
+  n_aceito <- 0
+  
+  # Loop pelas iterações
+  for (i in 2:n_iter) {
+    # Propor um novo ponto (Normal bivariada independente)
+    proposta <- rnorm(2, mean = estado_atual, sd = sigma_prop)
+    proposta <- as.vector(proposta)
+    
+    # Calcular a razão de aceitação
+    log_r <- log_alvo(proposta) - log_alvo(estado_atual)
+    r <- exp(log_r)
+    
+    # Aceitar o ponto proposto com probabilidade min(1, r)
+    if (runif(1) < min(1, r)) {
+      estado_atual <- proposta
+      n_aceito <- n_aceito + 1
+    }
+    # Caso contrário, permanece no estado atual
+    
+    # Armazenar o ponto na cadeia
+    cadeia_mk[i, ] <- estado_atual
+  }
+  
+  # Calcular taxa de aceitação
+  tx_aceita <- n_aceito / (n_iter - 1)
+  
+  # Retornar resultados
+  return(list(
+    cadeia_mk = cadeia_mk,
+    tx_aceita = tx_aceita,
+    n_aceito = n_aceito,
+    n_iter = n_iter
+  ))
+}
+
+# Executar o amostrador com diferentes valores de sigma_prop
+set.seed(123)
+
+# Teste com sigma_prop = 1.0
+resultado_mcmc_1 <- metropolis_bvn(n_iter = 10000, sigma_prop = 1.0)
+
+# Teste com sigma_prop = 0.5
+resultado_mcmc_05 <- metropolis_bvn(n_iter = 10000, sigma_prop = 0.5)
+
+# Teste com sigma_prop = 2.0
+resultado_mcmc_2 <- metropolis_bvn(n_iter = 10000, sigma_prop = 2.0)
+
+cat("Taxas de aceitação para diferentes sigma_prop:\n")
+cat("sigma = 0.5:", round(resultado_mcmc_05$tx_aceita, 4), "\n")
+cat("sigma = 1.0:", round(resultado_mcmc_1$tx_aceita, 4), "\n")
+cat("sigma = 2.0:", round(resultado_mcmc_2$tx_aceita, 4), "\n")
+```
+
+### 3.2 Análise da Saída
+
+```{r prob3b_analysis}
+# Função para analisar e plotar resultados de uma simulação Metropolis-Hastings
+analisar_mcmc_completo <- function(resultado_mcmc, sigma_valor, burn_in = 2000, thin = 50) {
+  
+  cadeia <- resultado_mcmc$cadeia_mk
+  n_iter <- resultado_mcmc$n_iter
+  tx_aceita <- resultado_mcmc$tx_aceita
+  n_aceito <- resultado_mcmc$n_aceito
+  
+  cat("=== Análise para sigma =", sigma_valor, "===\n")
+  cat("Taxa de aceitação:", round(tx_aceita, 4), "\n")
+  cat("Número de amostras aceitas:", n_aceito, "\n")
+  cat("Número total de iterações:", n_iter, "\n\n")
+  
+  # Preparar dados
+  df_cadeia <- as.data.frame(cadeia)
+  colnames(df_cadeia) <- c("X1", "X2")
+  df_cadeia$iter <- 1:nrow(df_cadeia)
+  
+  # Trace plots
+  p1 <- ggplot(df_cadeia, aes(x = iter, y = X1)) +
+    geom_line(color = "blue", alpha = 0.8) +
+    geom_vline(xintercept = burn_in, color = "red", linetype = "dashed") +
+    labs(title = paste("Trace plot para X1 (σ =", sigma_valor, ")"),
+         x = "Iteração", y = "X1") +
+    theme_minimal()
+  
+  p2 <- ggplot(df_cadeia, aes(x = iter, y = X2)) +
+    geom_line(color = "darkgreen", alpha = 0.8) +
+    geom_vline(xintercept = burn_in, color = "red", linetype = "dashed") +
+    labs(title = paste("Trace plot para X2 (σ =", sigma_valor, ")"),
+         x = "Iteração", y = "X2") +
+    theme_minimal()
+  
+  print(p1 / p2)
+  
+  # Aplicar burn-in
+  cadeia_burnin <- cadeia[-seq_len(burn_in), , drop = FALSE]
+  df_cadeia_burnin <- as.data.frame(cadeia_burnin)
+  colnames(df_cadeia_burnin) <- c("X1", "X2")
+  
+  # Scatter plot com contornos teóricos
+  amostras_teoricas <- mvtnorm::rmvnorm(nrow(df_cadeia_burnin), mean = mu, sigma = Sigma)
+  df_teoricas <- as.data.frame(amostras_teoricas)
+  colnames(df_teoricas) <- c("X1", "X2")
+  
+  p_scatter <- ggplot(df_cadeia_burnin, aes(x = X1, y = X2)) +
+    geom_point(alpha = 0.4, color = "purple", size = 0.8) +
+    stat_density_2d(aes(fill = after_stat(level)), geom = "polygon", alpha = 0.2, color = NA) +
+    stat_density_2d(data = df_teoricas, aes(x = X1, y = X2),
+                    color = "red", linewidth = 1, bins = 6) +
+    labs(title = paste("Scatter plot MCMC com contornos teóricos (σ =", sigma_valor, ")"),
+         subtitle = "Roxo: Amostras MCMC | Vermelho: Contornos teóricos",
+         x = "X1", y = "X2") +
+    theme_minimal() +
+    theme(legend.position = "none")
+  
+  print(p_scatter)
+  
+  # Thinning para reduzir autocorrelação
+  cadeia_thin <- cadeia_burnin[seq(1, nrow(cadeia_burnin), by = thin), , drop = FALSE]
+  
+  # Estatísticas finais
+  cat("Estatísticas após burn-in e thinning:\n")
+  cat("Média X1:", round(mean(cadeia_thin[, 1]), 4), "(teórica: 0)\n")
+  cat("Média X2:", round(mean(cadeia_thin[, 2]), 4), "(teórica: 0)\n")
+  cat("Var X1:", round(var(cadeia_thin[, 1]), 4), "(teórica: 1)\n")
+  cat("Var X2:", round(var(cadeia_thin[, 2]), 4), "(teórica: 1)\n")
+  cat("Correlação:", round(cor(cadeia_thin[, 1], cadeia_thin[, 2]), 4), "(teórica: 0.9)\n\n")
+  
+  return(list(cadeia_final = cadeia_thin, taxa_aceitacao = tx_aceita))
+}
+
+# Analisar os três casos
+resultado_05 <- analisar_mcmc_completo(resultado_mcmc_05, 0.5)
+resultado_1 <- analisar_mcmc_completo(resultado_mcmc_1, 1.0)
+resultado_2 <- analisar_mcmc_completo(resultado_mcmc_2, 2.0)
+
+# Tabela resumo comparativa
+tabela_resumo <- data.frame(
+  Sigma = c(0.5, 1.0, 2.0),
+  `Taxa Aceitação` = c(resultado_mcmc_05$tx_aceita, 
+                       resultado_mcmc_1$tx_aceita, 
+                       resultado_mcmc_2$tx_aceita),
+  Avaliação = c("Taxa alta - passos pequenos",
+                "Taxa adequada - boa exploração", 
+                "Taxa baixa - passos grandes")
+)
+
+print("=== RESUMO COMPARATIVO ===")
+print(tabela_resumo)
+```
+
+**Análise da Tarefa 3.2:**
+
+De acordo com os resultados obtidos:
+
+| Sigma | Taxa de Aceitação | Avaliação |
+|-------|------------------|-----------|
+| σ=0.5 | ~0.54 | Taxa alta - passos pequenos |
+| σ=1.0 | ~0.31 | Taxa adequada - boa exploração |
+| σ=2.0 | ~0.13 | Taxa baixa - passos grandes |
+
+**Análise Detalhada por Parâmetro:**
+
+1. **σ = 0.5** (Taxa de aceitação alta ~54%):
+   - **Vantagens:** Alta taxa de aceitação, boa correspondência às estatísticas teóricas
+   - **Desvantagens:** Passos muito pequenos resultam em alta autocorrelação e exploração lenta
+   - **Trace plots:** Movimentação lenta, requerendo maior thinning
+   - **Recomendação:** Adequado quando se prioriza precisão sobre eficiência
+
+2. **σ = 1.0** (Taxa de aceitação moderada ~31%):
+   - **Vantagens:** Equilíbrio ótimo entre eficiência e exploração
+   - **Trace plots:** Boa mistura e exploração adequada do espaço paramétrico
+   - **Scatter plots:** Excelente sobreposição com contornos teóricos
+   - **Recomendação:** **Valor ótimo** para esta aplicação específica
+
+3. **σ = 2.0** (Taxa de aceitação baixa ~13%):
+   - **Desvantagens:** Passos excessivamente grandes causam muitas rejeições
+   - **Trace plots:** Movimentação irregular com longos períodos estacionários
+   - **Eficiência:** Exploração ineficiente devido às rejeições frequentes
+   - **Recomendação:** Inadequado para esta distribuição alvo
+
+**Conclusão Estatística:**
+
+O **σ = 1.0** demonstrou ser a escolha superior, proporcionando:
+- Taxa de aceitação dentro da faixa recomendada (20-50%) para Metropolis-Hastings
+- Melhor equilíbrio entre eficiência computacional e qualidade da exploração
+- Convergência adequada para as estatísticas da distribuição Normal Bivariada (ρ = 0.9)
+- Trace plots indicando boa mistura sem autocorrelação excessiva
+
+Esta análise confirma a importância do ajuste cuidadoso dos parâmetros de proposta em algoritmos MCMC para otimizar tanto a eficiência quanto a qualidade das amostras geradas.
+
+---
+
+## Considerações Gerais
+
+Os três métodos implementados demonstraram eficácia em seus respectivos contextos:
+
+1. **Variáveis antitéticas** proporcionaram redução dramática de ~80% no erro padrão para integração Monte Carlo, demonstrando a importância de técnicas de redução de variância.
+
+2. **Amostragem por rejeição** mostrou alta eficiência com taxa de aceitação próxima ao máximo teórico (66.7%), validando a escolha adequada da distribuição envelope.
+
+3. **Metropolis-Hastings** ilustrou a importância crítica do ajuste de parâmetros, onde σ = 1.0 forneceu o melhor equilíbrio entre eficiência e qualidade das amostras.
+
+Cada técnica ilustra aspectos fundamentais dos métodos Monte Carlo: redução de variância através de correlação induzida, geração eficiente de amostras de distribuições específicas, e exploração controlada de distribuições multivariadas complexas. Os resultados obtidos confirmam tanto a validade teórica quanto a aplicabilidade prática destes métodos essenciais em computação estatística moderna.
