@@ -1,5 +1,16 @@
 {
     "r.rpath.windows": "B:\\R\\R-4.5.1\\bin\\R.exe",
     "r.rterm.windows": "B:\\\\R\\\\R-4.5.1\\\\bin\\\\R.exe",
-    "r.rterm.windows": "C:\\\\Program Files\\\\R\\\\R-4.5.1\\\\bin\\\\R.exe"
+    "r.rterm.windows": "C:\\\\Program Files\\\\R\\\\R-4.5.1\\\\bin\\\\R.exe",
+    
+    // Configurações do Python
+    //"python.defaultInterpreterPath": "C:\\\\Python312\\\\python.exe",
+    //"python.pythonPath": "C:\\\\Python311\\\\python.exe",
+    "python.terminal.activateEnvironment": true,
+    
+    // Caminhos alternativos para Python (descomente o que for necessário)
+     "python.defaultInterpreterPath": "C:\\\\Users\\\\dcemfsilvio\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python312\\\\python.exe",
+    // "python.defaultInterpreterPath": "C:\\\\Program Files\\\\Python311\\\\python.exe",
+    // "python.defaultInterpreterPath": "C:\\\\anaconda3\\\\python.exe",
+    // "python.defaultInterpreterPath": "C:\\\\miniconda3\\\\python.exe"
 }

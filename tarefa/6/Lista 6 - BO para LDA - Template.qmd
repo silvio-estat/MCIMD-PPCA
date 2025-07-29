@@ -1,0 +1,243 @@
+---
+title: "PPCA0026 - Tarefa Final: Otimização Bayesiana de um Modelo de Tópicos (LDA)"
+subtitle: "Integrando MCMC e Otimização de Hiperparâmetros"
+author: "Sílvio Júnior / Ítalo Vinícius"
+date: "2025-08-29"
+format:
+  html:
+    embed-resources: true
+    toc: true
+    toc-depth: 3
+    theme: cosmo
+    code-fold: show
+    code-tools: true
+---
+
+## Introdução
+
+Este ficheiro serve como o seu template de resposta. Preencha as secções marcadas com o seu código R, as saídas geradas, e as suas análises textuais.
+
+```{r setup, include=FALSE}
+# Carregue todos os pacotes que você usará aqui
+library(tidyverse)
+library(tidytext)
+library(tm)
+library(textmineR)
+library(reticulate)
+
+# Configure o reticulate para usar o seu ambiente Python, se necessário.
+# Primeiro, vamos verificar qual Python o reticulate está detectando:
+cat("Python detectado pelo reticulate:\n")
+print(py_config())
+
+# Se necessário, descomente e ajuste uma das linhas abaixo:
+# Opção 1: Caminho específico
+#use_python("C:\\Python311\\python.exe", required = TRUE)
+# Opção 2: Usar Anaconda/Miniconda
+#use_condaenv("base", required = TRUE)
+# Opção 3: Usar ambiente virtual
+#use_virtualenv("nome_do_ambiente", required = TRUE)
+```
+
+---
+
+## Problema 1: Preparação dos Dados e Implementação do Sampler LDA
+
+### Parte A: Preparação dos Dados
+
+1.  **Obtenha e Processe os Dados:** Comece por carregar o ficheiro `cpi_pandemia_discursos.csv`.
+2.  **Amostragem:** Crie um subconjunto com uma amostra aleatória de 500 discursos.
+3.  **Pipeline de Pré-processamento:** Execute a limpeza de texto, crie uma DTM e filtre-a.
+
+```{r prob1a_data_prep, message=FALSE, warning=FALSE}
+# Verificar onde estamos e listar arquivos disponíveis
+cat("Diretório atual:", getwd(), "\n")
+
+# 1. Carregue os Dados
+# Ajuste o caminho conforme necessário baseado na busca acima
+discursos_cpi <- read_csv(paste(getwd(),"tarefa/6/cpi_pandemia_discursos.csv",sep="/"))
+
+# 2. Amostragem de 500 discursos
+set.seed(123) # Para reprodutibilidade
+
+discursos_cpi_amostra <- discursos_cpi %>% 
+  slice_sample(n = 500)
+
+# 3. Pipeline de Pré-processamento
+
+# 3.1. Tokenize o texto em palavras individuais e converta para minúsculas
+discursos_tokens <- discursos_cpi_amostra %>%
+  unnest_tokens(word, text) %>% 
+  mutate(word = str_to_lower(word))
+
+cat("Número de tokens antes da limpeza:", nrow(discursos_tokens), "\n")
+
+# 3.2. Remova pontuação, números e stopwords
+stopwords_pt <- get_stopwords(language = "pt")
+
+# Adicionar stopwords customizadas se necessário
+stopwords_custom <- c("é", "são", "foi", "ser", "ter", "estar", "fazer", "vai", "vão", "pode", "podem")
+
+discursos_limpos <- discursos_tokens %>%
+  # Remover números e pontuação (manter apenas letras)
+  filter(str_detect(word, "^[a-záàâãéèêíìîóòôõúùûç]+$")) %>%
+  # Remover palavras muito curtas (menos de 3 caracteres)
+  filter(nchar(word) >= 3) %>%
+  # Remover stopwords em português
+  anti_join(stopwords_pt, by = "word") %>%
+  # Remover stopwords customizadas
+  filter(!word %in% stopwords_custom)
+
+cat("Número de tokens após limpeza:", nrow(discursos_limpos), "\n")
+
+# 3.3. Criar Document-Term Matrix (DTM)
+# Contar frequência de termos por documento
+dtm_data <- discursos_limpos %>%
+  count(id, word, sort = TRUE) %>%  # Assumindo que existe uma coluna 'id' para identificar documentos
+  ungroup()
+
+# Converter para formato de matriz esparsa
+dtm_sparse <- dtm_data %>%
+  cast_dtm(id, word, n)
+
+cat("Dimensões da DTM inicial:", dim(dtm_sparse), "\n")
+
+# 3.4. Filtrar DTM para remover termos raros
+# Remover termos que aparecem em menos de 5 documentos
+term_freq <- dtm_data %>%
+  group_by(word) %>%
+  summarise(doc_count = n_distinct(id), .groups = 'drop') %>%
+  filter(doc_count >= 5)
+
+# Filtrar DTM mantendo apenas termos frequentes
+dtm_filtered_data <- dtm_data %>%
+  semi_join(term_freq, by = "word")
+
+# Criar DTM final filtrada
+dtm_final <- dtm_filtered_data %>%
+  cast_dtm(id, word, n)
+
+# Ao final, imprima as dimensões da sua DTM final
+cat("Dimensões da DTM final (após filtros):", dim(dtm_final), "\n")
+cat("Número de documentos:", nrow(dtm_final), "\n")
+cat("Número de termos únicos:", ncol(dtm_final), "\n")
+
+# Mostrar alguns termos mais frequentes
+termos_frequentes <- dtm_filtered_data %>%
+  group_by(word) %>%
+  summarise(total_freq = sum(n), doc_count = n_distinct(id), .groups = 'drop') %>%
+  arrange(desc(total_freq)) %>%
+  head(10)
+
+cat("\nTop 10 termos mais frequentes:\n")
+print(termos_frequentes)
+```
+
+**Análise da Parte 1.A:**
+
+*SUA ANÁLISE AQUI:* Descreva brevemente os passos que você tomou e reporte as dimensões (número de documentos e termos) da sua DTM final.
+
+### Parte B: Implementação e Estruturação do Gibbs Sampler
+
+1.  **Crie uma Função `run_lda_sampler`:** Implemente o algoritmo Gibbs sampler para LDA.
+
+```{r prob1b_sampler_function}
+run_lda_sampler <- function(dtm, K, alpha, beta, num_iterations, burn_in) {
+  # ... seu código de implementação do Gibbs sampler aqui ...
+  # A função deve retornar uma lista com ndk, nkv, e vocab.
+}
+```
+
+---
+
+## Problema 2: Otimização Bayesiana dos Hiperparâmetros
+
+### Parte A: Definição da Função Objetivo
+
+1.  **Crie a Função Objetivo:** Escreva uma função em R que execute o sampler e calcule a coerência dos tópicos.
+
+```{r prob2a_objective_function}
+# Função para calcular a coerência (pode usar a do gabarito como referência)
+calcular_coerencia <- function(nkv, dtm, vocab, num_top_words = 10) {
+  # ... (código da função de coerência) ...
+}
+
+# Função Objetivo para a BO
+objective_function_lda <- function(params) {
+  alpha <- params[[1]]
+  beta <- params[[2]]
+  
+  # ... seu código aqui ...
+  # Chame run_lda_sampler e calcular_coerencia.
+  # Lembre-se de retornar -1 * coerência.
+}
+```
+
+### Parte B: Configuração e Execução da BO em Python
+
+1.  **Defina o Espaço de Busca e Execute o Otimizador:**
+
+```{python prob2b_bo_run}
+#| echo: true
+#| eval: true
+
+from skopt import gp_minimize
+from skopt.space import Real
+from skopt.plots import plot_convergence, plot_objective
+import matplotlib.pyplot as plt
+
+# 1. Defina o Espaço de Busca para alpha e beta
+# ... seu código aqui ...
+
+# 2. Execute o Otimizador
+# result_lda_bo = gp_minimize(...)
+
+# Guarde os resultados para usar em R
+# optimal_alpha = result_lda_bo.x[0]
+# optimal_beta = result_lda_bo.x[1]
+```
+
+---
+
+## Problema 3: Análise dos Resultados
+
+### Parte A: Análise da Otimização
+
+1.  **Reporte os Melhores Hiperparâmetros e Visualize os Resultados:**
+
+```{r prob3a_analysis}
+# Use o objeto `py` para aceder aos resultados do Python em R
+# resultado_python <- py$result_lda_bo
+
+# Reporte os valores ótimos
+# ...
+```{python prob3a_plots}
+#| echo: true
+#| eval: true
+
+# Visualize a convergência e a superfície de resposta
+# plot_convergence(...)
+# plot_objective(...)
+```
+
+**Análise da Parte A:**
+
+*SUA ANÁLISE AQUI:* Inclua os seus gráficos. O que eles mostram sobre o processo de otimização? A BO conseguiu encontrar uma região promissora no espaço de hiperparâmetros?
+
+### Parte B: Interpretando o Modelo Final
+
+1.  **Execute o Modelo Final e Apresente os Tópicos:**
+
+```{r prob3b_final_model}
+# 1. Execute o Modelo Final com mais iterações, usando os
+#    hiperparâmetros ótimos encontrados.
+# ... seu código aqui ...
+
+# 2. Extraia os top 10 termos para cada tópico e apresente-os numa tabela.
+# ... seu código aqui ...
+```
+
+**Análise da Parte B:**
+
+*SUA ANÁLISE E TABELA AQUI:* Apresente a sua tabela de tópicos e atribua um "rótulo" interpretável a cada um. A otimização dos hiperparâmetros resultou em tópicos que parecem coerentes e distintos? Discuta a sua interpretação.
+

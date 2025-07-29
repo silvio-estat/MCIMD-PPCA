@@ -1,0 +1,107 @@
+---
+title: "PPCA0026 - Tarefa Final: Otimização Bayesiana de um Modelo de Tópicos (LDA)"
+subtitle: "Integrando MCMC e Otimização de Hiperparâmetros"
+author: "Prof. Donald M. Pianto"
+date: "2025-07-25"
+format:
+  html:
+    embed-resources: true
+    toc: true
+    toc-depth: 3
+    theme: cosmo
+    code-fold: show
+    code-tools: true
+---
+
+## Introdução
+
+Nesta tarefa final, você irá combinar duas das técnicas mais poderosas que vimos no curso: a amostragem MCMC com o Gibbs Sampler e a Otimização Bayesiana (BO). O seu objetivo será construir um pipeline completo para um modelo de tópicos Latent Dirichlet Allocation (LDA), que não só ajusta o modelo, mas também otimiza de forma inteligente os seus principais hiperparâmetros.
+
+**Objetivos de Aprendizagem:**
+
+1.  Implementar um pipeline de pré-processamento de texto para dados brutos.
+2.  Implementar o algoritmo Gibbs sampler para LDA e estruturá-lo como uma função reutilizável.
+3.  Definir uma função objetivo para a otimização de hiperparâmetros, usando uma métrica de qualidade de tópicos (coerência).
+4.  Configurar e executar um otimizador Bayesiano em Python para encontrar os melhores valores para os hiperparâmetros `alpha` e `beta` do LDA.
+5.  Analisar os resultados da otimização e interpretar o modelo de tópicos final.
+
+**Instruções Gerais:**
+
+* Você receberá um template `.qmd` separado para preencher com seu código, saídas e respostas.
+* Esta tarefa requer o uso de R (para o LDA) e Python (para a BO), comunicando-se através do pacote `reticulate`.
+* **Entrega:** Envie dois arquivos: o seu `.qmd` completo e o arquivo `.html` autocontido resultante.
+
+---
+
+## Problema 1: Preparação dos Dados e Implementação do Sampler LDA
+
+A base do nosso trabalho será a implementação de um Gibbs sampler para LDA. O primeiro passo é preparar os dados e construir o nosso amostrador de MCMC como uma ferramenta funcional.
+
+### Parte A: Preparação dos Dados
+
+1.  **Obtenha e Processe os Dados:** Comece por carregar o ficheiro `cpi_pandemia_discursos.csv` que será fornecido. Este ficheiro contém transcrições de discursos da CPI da Pandemia.
+2.  **Amostragem:** Como o dataset completo é muito grande para a otimização, crie um subconjunto pegando uma **amostra aleatória de 500 discursos** para a sua análise.
+3.  **Pipeline de Pré-processamento:** Execute um pipeline completo de limpeza de texto sobre a sua amostra:
+    * Tokenize o texto em palavras individuais.
+    * Converta tudo para minúsculas.
+    * Remova pontuação, números e "stopwords" (palavras comuns em português).
+    * Crie uma **Document-Term Matrix (DTM)** a partir dos tokens limpos.
+    * Filtre a DTM para remover termos que aparecem em muito poucos documentos (e.g., menos de 5).
+
+### Parte B: Implementação e Estruturação do Gibbs Sampler
+
+1.  **Crie uma Função `run_lda_sampler`:** Implemente o algoritmo Gibbs sampler para LDA (pode usar o script da aula como referência) e estruture-o dentro de uma única função em R.
+    * **Entradas (Inputs):** A função deve aceitar como argumentos:
+        * `dtm`: A Document-Term Matrix da Parte A.
+        * `K`: O número de tópicos.
+        * `alpha`: O hiperparâmetro para a priori das distribuições de tópicos dos documentos.
+        * `beta`: O hiperparâmetro para a priori das distribuições de palavras dos tópicos.
+        * `num_iterations`: O número de iterações do MCMC.
+        * `burn_in`: O número de iterações de aquecimento (burn-in).
+    * **Saída (Output):** A função deve retornar uma lista contendo as duas matrizes de contagem finais: `ndk` (documento-tópico) e `nkv` (tópico-palavra), bem como o vocabulário do `dtm`.
+
+---
+
+## Problema 2: Otimização Bayesiana dos Hiperparâmetros
+
+Agora, vamos usar a Otimização Bayesiana para encontrar os melhores valores para `alpha` e `beta`, que controlam a esparsidade das distribuições do nosso modelo.
+
+### Parte A: Definição da Função Objetivo
+
+1.  **Crie a Função Objetivo:** Escreva uma função em R que servirá como a nossa função objetivo "caixa-preta" para a BO.
+    * **Entradas (Inputs):** A função deve receber uma lista ou vetor contendo os valores atuais de `alpha` e `beta`.
+    * **Lógica Interna:**
+        1.  Chame a sua função `run_lda_sampler` da Parte 1 com os valores de `alpha` e `beta` recebidos e um número fixo de tópicos (use **K=15** para esta tarefa).
+        2.  Com as matrizes de contagem resultantes, calcule uma métrica de **coerência de tópicos (topic coherence)**.
+    * **Saída (Output):** A função deve retornar um único valor numérico. Como a BO por padrão minimiza, você deve retornar **-1 * coerência** (para maximizar a coerência).
+
+    *(**Dica:** Para o cálculo da coerência, pode usar uma implementação de um pacote como o `textmineR` ou seguir um tutorial. O importante é ter uma métrica consistente para avaliar a qualidade dos tópicos.)*
+
+### Parte B: Configuração e Execução da BO em Python
+
+1.  **Defina o Espaço de Busca:** No seu template, haverá um chunk de código Python. Nele, defina o espaço de busca para os hiperparâmetros usando o `scikit-optimize`:
+    * `alpha`: Um valor `Real` entre `1e-3` e `1.0` (em escala log-uniforme).
+    * `beta`: Um valor `Real` entre `1e-3` e `1.0` (em escala log-uniforme).
+2.  **Execute o Otimizador:**
+    * Use a função `gp_minimize` do `skopt`.
+    * Passe a sua função objetivo de R para o otimizador Python (o `reticulate` fará a ponte).
+    * Defina um orçamento de `n_calls = 30` avaliações, com `n_initial_points = 10`.
+
+---
+
+## Problema 3: Análise dos Resultados
+
+### Parte A: Análise da Otimização
+
+1.  **Reporte os Melhores Hiperparâmetros:** Apresente os valores ótimos de `alpha` e `beta` encontrados pelo otimizador.
+2.  **Visualize a Convergência:** Use a função `plot_convergence` do `skopt` para mostrar como o melhor score de coerência evoluiu ao longo das iterações.
+3.  **Visualize a Superfície de Resposta:** Use a função `plot_objective` para visualizar o "mapa" que a BO construiu da sua função de coerência.
+
+### Parte B: Interpretando o Modelo Final
+
+1.  **Execute o Modelo Final:** Rode o seu `run_lda_sampler` uma última vez, usando `K=15` e os valores ótimos de `alpha` e `beta` que você encontrou.
+2.  **Apresente e Interprete os Tópicos:**
+    * Apresente uma tabela com os 10 termos mais prováveis para cada um dos 15 tópicos.
+    * Atribua um "rótulo" interpretável a cada tópico (e.g., "Procedimentos do Senado", "Aquisição de Vacinas", "Tratamentos Médicos", etc.).
+    * Escreva uma breve análise sobre a qualidade dos tópicos encontrados. A otimização dos hiperparâmetros resultou em tópicos mais coerentes e distintos?
+
