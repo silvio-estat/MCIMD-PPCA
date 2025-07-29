@@ -75,8 +75,9 @@ cat("Número de tokens antes da limpeza:", nrow(discursos_tokens), "\n")
 # 3.2. Remova pontuação, números e stopwords
 stopwords_pt <- get_stopwords(language = "pt")
 
-# Adicionar stopwords customizadas se necessário
-stopwords_custom <- c("é", "são", "foi", "ser", "ter", "estar", "fazer", "vai", "vão", "pode", "podem")
+#(PRECISA? COMO NÃO CONHEÇO DIREITO A AREA NÃO SEI FALAR SOBRE)
+# Adicionar stopwords customizadas se necessário 
+#stopwords_custom <- c("é", "são", "foi", "ser", "ter", "estar", "fazer", "vai", "vão", "pode", "podem")
 
 discursos_limpos <- discursos_tokens %>%
   # Remover números e pontuação (manter apenas letras)
@@ -84,21 +85,21 @@ discursos_limpos <- discursos_tokens %>%
   # Remover palavras muito curtas (menos de 3 caracteres)
   filter(nchar(word) >= 3) %>%
   # Remover stopwords em português
-  anti_join(stopwords_pt, by = "word") %>%
+  anti_join(stopwords_pt, by = "word") #%>%
   # Remover stopwords customizadas
-  filter(!word %in% stopwords_custom)
+  #filter(!word %in% stopwords_custom)
 
 cat("Número de tokens após limpeza:", nrow(discursos_limpos), "\n")
 
 # 3.3. Criar Document-Term Matrix (DTM)
 # Contar frequência de termos por documento
 dtm_data <- discursos_limpos %>%
-  count(id, word, sort = TRUE) %>%  # Assumindo que existe uma coluna 'id' para identificar documentos
+  count(doc_id, word, sort = TRUE) %>% 
   ungroup()
 
 # Converter para formato de matriz esparsa
 dtm_sparse <- dtm_data %>%
-  cast_dtm(id, word, n)
+  cast_dtm(doc_id, word, n)
 
 cat("Dimensões da DTM inicial:", dim(dtm_sparse), "\n")
 
@@ -106,7 +107,7 @@ cat("Dimensões da DTM inicial:", dim(dtm_sparse), "\n")
 # Remover termos que aparecem em menos de 5 documentos
 term_freq <- dtm_data %>%
   group_by(word) %>%
-  summarise(doc_count = n_distinct(id), .groups = 'drop') %>%
+  summarise(doc_count = n_distinct(doc_id), .groups = 'drop') %>%
   filter(doc_count >= 5)
 
 # Filtrar DTM mantendo apenas termos frequentes
@@ -115,7 +116,7 @@ dtm_filtered_data <- dtm_data %>%
 
 # Criar DTM final filtrada
 dtm_final <- dtm_filtered_data %>%
-  cast_dtm(id, word, n)
+  cast_dtm(doc_id, word, n)
 
 # Ao final, imprima as dimensões da sua DTM final
 cat("Dimensões da DTM final (após filtros):", dim(dtm_final), "\n")
@@ -125,7 +126,7 @@ cat("Número de termos únicos:", ncol(dtm_final), "\n")
 # Mostrar alguns termos mais frequentes
 termos_frequentes <- dtm_filtered_data %>%
   group_by(word) %>%
-  summarise(total_freq = sum(n), doc_count = n_distinct(id), .groups = 'drop') %>%
+  summarise(total_freq = sum(n), doc_count = n_distinct(doc_id), .groups = 'drop') %>%
   arrange(desc(total_freq)) %>%
   head(10)
 
@@ -135,7 +136,11 @@ print(termos_frequentes)
 
 **Análise da Parte 1.A:**
 
-*SUA ANÁLISE AQUI:* Descreva brevemente os passos que você tomou e reporte as dimensões (número de documentos e termos) da sua DTM final.
+Primeiramente foi jeito o ajuste da pasta de trabalho para que independente da pessoa que vier realizar o "pull" do projeto do github consiga buscar o documento de interesse. Depois foi feita uma amostragem aleatória de 500 discursos conforme solicitado. Após a amostragem, o trabalho com os tokens dos discursos foi inicializado. 
+
+Primeiro foi feito a tokenização fui guardada na variável "word" através do `unnest_tokens`. Após isso foi feito uma limpeza destes transformando-os em letras minúsculas, retirando palavras com caracteres estranhos, e retirando outras "stopwords" definidas em `stopwords_pt`. 
+
+Após a primeira limpeza, iniciou-se a criação da matriz DTM sendo `cast_dtm` e retirou-se os tokens que tinham frequência absoluta abaixo de 5. Por fim foi feita a apresentação de alguns resultados como o número de documentos iqual a 37 (500 discursos) e 2059 tokens únicos.
 
 ### Parte B: Implementação e Estruturação do Gibbs Sampler
 
@@ -143,9 +148,147 @@ print(termos_frequentes)
 
 ```{r prob1b_sampler_function}
 run_lda_sampler <- function(dtm, K, alpha, beta, num_iterations, burn_in) {
-  # ... seu código de implementação do Gibbs sampler aqui ...
-  # A função deve retornar uma lista com ndk, nkv, e vocab.
+
+  # --- 1. Validação e Preparação dos Dados ---
+
+  if (burn_in >= num_iterations) {
+    stop("O número de iterações (num_iterations) deve ser maior que o período de burn-in.")
+  }
+
+  # Obter o vocabulário e seu tamanho
+  vocab <- colnames(dtm)
+  V <- length(vocab)
+  num_docs <- nrow(dtm)
+
+  # Mapear palavras para índices numéricos para eficiência
+  word_to_id <- 1:V
+  names(word_to_id) <- vocab
+
+  # Converter a DTM para um formato de lista de IDs de palavras (corpus_ids).
+  # Este formato é mais conveniente para o Gibbs Sampler, onde cada documento
+  # é um vetor de IDs de palavras, com repetições.
+  corpus_ids <- apply(dtm, 1, function(document_row) {
+    # Pega apenas as palavras que aparecem no documento
+    word_counts <- document_row[document_row > 0]
+    
+    if(length(word_counts) == 0) {
+      return(integer(0))  # Documento vazio
+    }
+    
+    # Repete o ID de cada palavra pelo número de vezes que ela aparece
+    rep(word_to_id[names(word_counts)], times = word_counts)
+  })
+
+  #print("o corpus_ids é:")
+  #print(head(corpus_ids))
+
+  # --- 2. Inicialização Aleatória ---
+
+  # `z` é uma lista que armazena a atribuição de tópico para cada instância de palavra
+  set.seed(123) # Para reprodutibilidade
+  z <- lapply(corpus_ids, function(doc) {
+    if (length(doc) > 0) {
+      sample(1:K, size = length(doc), replace = TRUE)
+    } else {
+      integer(0) # Documento vazio
+    }
+  })
+
+  # Inicialização das matrizes de contagem
+  # ndk: matriz documento-tópico
+  ndk <- matrix(0, nrow = num_docs, ncol = K)
+  # nkv: matriz tópico-palavra
+  nkv <- matrix(0, nrow = K, ncol = V)
+  # nk: vetor com o total de palavras por tópico
+  nk <- rep(0, K)
+
+  # Preencher as matrizes de contagem com base na inicialização aleatória
+  for (d in 1:num_docs) {
+    if (length(corpus_ids[[d]]) > 0) {
+        for (i in 1:length(corpus_ids[[d]])) {
+            topic <- z[[d]][i]
+            word_id <- corpus_ids[[d]][i]
+
+            ndk[d, topic] <- ndk[d, topic] + 1
+            nkv[topic, word_id] <- nkv[topic, word_id] + 1
+            nk[topic] <- nk[topic] + 1
+        }
+    }
+  }
+
+  # --- 3. O Loop do Gibbs Sampler ---
+
+  cat("Iniciando o Gibbs Sampler...\n")
+
+  for (iter in 1:num_iterations) {
+    if (iter %% 100 == 0) {
+      cat(paste("Iteração", iter, "de", num_iterations, "\n"))
+    }
+
+    # Loop sobre cada documento e cada palavra no documento
+    for (d in 1:num_docs) {
+      if (length(corpus_ids[[d]]) == 0) next # Pular documentos vazios
+
+      for (i in 1:length(corpus_ids[[d]])) {
+        word_id <- corpus_ids[[d]][i]
+        old_topic <- z[[d]][i]
+
+        # (1) Decrementar contagens para a palavra e tópico atuais
+        ndk[d, old_topic] <- ndk[d, old_topic] - 1
+        nkv[old_topic, word_id] <- nkv[old_topic, word_id] - 1
+        nk[old_topic] <- nk[old_topic] - 1
+
+        # (2) Calcular a probabilidade condicional para cada tópico
+        # Esta é a equação central do Collapsed Gibbs Sampling para LDA
+        p_topic_given_doc <- ndk[d, ] + alpha
+        p_word_given_topic <- (nkv[, word_id] + beta) / (nk + V * beta)
+        cond_prob <- p_topic_given_doc * p_word_given_topic
+
+        # (3) Amostrar um novo tópico a partir da distribuição de probabilidade
+        # A função sample normaliza internamente o vetor de probabilidades `prob`
+        new_topic <- sample(1:K, size = 1, prob = cond_prob)
+
+        # (4) Atualizar a atribuição e as contagens com o novo tópico
+        z[[d]][i] <- new_topic
+        ndk[d, new_topic] <- ndk[d, new_topic] + 1
+        nkv[new_topic, word_id] <- nkv[new_topic, word_id] + 1
+        nk[new_topic] <- nk[new_topic] + 1
+      }
+    }
+  }
+  
+  cat("Gibbs Sampler concluído.\n")
+
+  # --- 4. Preparação da Saída ---
+
+  # Adicionar nomes às dimensões das matrizes para facilitar a interpretação
+  rownames(ndk) <- rownames(dtm)
+  colnames(ndk) <- paste0("Tópico_", 1:K)
+  rownames(nkv) <- paste0("Tópico_", 1:K)
+  colnames(nkv) <- vocab
+
+  # Criar a lista de saída conforme especificado nos requisitos
+  output <- list(
+    ndk = ndk,
+    nkv = nkv,
+    vocab = vocab
+  )
+
+  return(output)
 }
+
+#testando se está rodando
+#resultados_lda <- run_lda_sampler(
+#  dtm = dtm_final,  # CORRIGIDO: usar dtm_final em vez de dtm_filtered_data
+#  K = 6,
+#  alpha = 0.2,
+#  beta = 0.2,
+#  num_iterations = 1000,
+#  burn_in = 200
+#)
+
+#print(resultados_lda)
+
 ```
 
 ---
